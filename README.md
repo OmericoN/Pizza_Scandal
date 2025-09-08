@@ -1,5 +1,8 @@
 # Pizza_Scandal
 Collaborated project done by Omer and Raul for the Databases course (University Maastricht)
+## ORM setup
+Install SQLAlchemy as the ORM `pip install SQLAlchemy`  
+Install mysql driver for python `pip install pymysql`  
 
 ## Database Distribution
 Make sure to enter mysql commands using the Command Line (not shell) and configure the path
