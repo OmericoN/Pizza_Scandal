@@ -1,8 +1,8 @@
--- MySQL dump 10.13  Distrib 9.4.0, for macos15.4 (arm64)
+-- MySQL dump 10.13  Distrib 8.0.42, for Win64 (x86_64)
 --
 -- Host: localhost    Database: pizza_ordering
 -- ------------------------------------------------------
--- Server version	9.4.0
+-- Server version	8.0.42
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
@@ -63,6 +63,32 @@ LOCK TABLES `pizza` WRITE;
 /*!40000 ALTER TABLE `pizza` DISABLE KEYS */;
 /*!40000 ALTER TABLE `pizza` ENABLE KEYS */;
 UNLOCK TABLES;
+
+--
+-- Table structure for table `pizza_ingredient`
+--
+
+DROP TABLE IF EXISTS `pizza_ingredient`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `pizza_ingredient` (
+  `pizza_id` int NOT NULL,
+  `ingredient_id` int NOT NULL,
+  PRIMARY KEY (`pizza_id`,`ingredient_id`),
+  KEY `ingredient_id` (`ingredient_id`),
+  CONSTRAINT `pizza_ingredient_ibfk_1` FOREIGN KEY (`pizza_id`) REFERENCES `pizza` (`pizza_id`),
+  CONSTRAINT `pizza_ingredient_ibfk_2` FOREIGN KEY (`ingredient_id`) REFERENCES `ingredient` (`ingredient_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `pizza_ingredient`
+--
+
+LOCK TABLES `pizza_ingredient` WRITE;
+/*!40000 ALTER TABLE `pizza_ingredient` DISABLE KEYS */;
+/*!40000 ALTER TABLE `pizza_ingredient` ENABLE KEYS */;
+UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
@@ -73,4 +99,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2025-09-09 14:20:03
+-- Dump completed on 2025-09-09 14:41:56
