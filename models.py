@@ -17,6 +17,15 @@ class Customer(db.Model):
 
 class DiscountCode(db.Model):
     __tablename__="DiscountCode"
-    discount_code_id = db.Column(db.Integer, primary_key=True, )
+    discount_code_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    code = db.Column(db.String(50), unique=True, nullable=False)
+    is_redeemed = db.Column(db.Boolean, default=False, nullable=False)
 
+    def __repr__(self):
+        return f"discount code id {self.discount_code_id}, code: {self.code}"
 
+class DiscountType(db.Model):
+    __tablename__="DiscountType"
+    discount_type_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    name = db.Column(db.String(50), nullable=False)
+    percent = db.Column(db.Numeric(5,2))
