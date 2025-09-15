@@ -29,3 +29,37 @@ class DiscountType(db.Model):
     discount_type_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     name = db.Column(db.String(50), nullable=False)
     percent = db.Column(db.Numeric(5,2))
+
+pizza_ingredients = db.Table(
+   'pizza_ingredients',
+   db.Column('pizza_id', db.Integer, db.ForeignKey('Pizza.pizza_id'), primary_key=True),
+   db.Column('ingredient_id', db.Integer, db.ForeignKey('Ingredients.ingredient_id'), primary_key=True)
+)
+
+
+class Pizza(db.Model):
+   __tablename__ = "Pizza"
+   pizza_id = db.Column(db.Integer, primary_key=True)
+   name = db.Column(db.String(100), nullable=False)
+   description = db.Column(db.String(200), nullable=False)
+   ingredients = db.relationship(
+       'Ingredient',
+       secondary=pizza_ingredients,
+       back_populates='pizzas'
+   )
+
+
+class Ingredient(db.Model):
+   __tablename__ = "Ingredients"
+   ingredient_id = db.Column(db.Integer, primary_key=True)
+   name = db.Column(db.String(100), nullable=False)
+   cost = db.Column(db.Numeric(10, 2), nullable=False)
+   vegetarian = db.Column(db.Boolean, nullable=False, default=False)
+   pizzas = db.relationship(
+       'Pizza',
+       secondary=pizza_ingredients,
+       back_populates='ingredients'
+   )
+
+   ###
+
