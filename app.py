@@ -14,12 +14,15 @@ def create_app():
     with app.app_context():
         db.create_all()
 
+<<<<<<< HEAD
     @app.route("/")
     def index():
         return ("<p>Pizzeria app. Supabase connection is working</p>")
     
     return app
 
+=======
+>>>>>>> 377022f4e1e26d56a7b9339007dd7218aa3eeca5
 if __name__ == "__main__":
     app = create_app()
     app.run(debug=True)
