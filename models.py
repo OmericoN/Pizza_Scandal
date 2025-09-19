@@ -3,6 +3,20 @@ import os
 
 db = SQLAlchemy()
 
+
+deliveryPerson_Order = db.Table(
+    'deliveryperson_order',
+    db.Column('delivery_person_id', db.Integer, db.ForeignKey('DeliveryPerson.delivery_person_id'), primary_key = True),
+    db.Column('order_id', db.Integer, db.ForeignKey('Order.order_id'), primary_key = True)
+)
+
+
+pizza_ingredients = db.Table(
+   'pizza_ingredients',
+   db.Column('pizza_id', db.Integer, db.ForeignKey('Pizza.pizza_id'), primary_key=True),
+   db.Column('ingredient_id', db.Integer, db.ForeignKey('Ingredients.ingredient_id'), primary_key=True)
+)
+
 discount_list = db.Table(
     'discount_list',
     db.Column('discount_code_id', db.Integer, db.ForeignKey('DiscountCode.discount_code_id'), primary_key=True),
@@ -40,23 +54,6 @@ class DiscountType(db.Model):
     discount_type_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     name = db.Column(db.String(50), nullable=False)
     percent = db.Column(db.Numeric(5,2))
-    discount_code = db.relationship(
-        'DiscountCode',
-        secondary=discount_list,
-        back_populates='discount_type'
-    )
-
-    def __repr__(self):
-        return f"discount type id: {self.discount_type_id}, discount type name: {self.name}, discount percentage: {self.percent}"
-
-
-
-
-pizza_ingredients = db.Table(
-   'pizza_ingredients',
-   db.Column('pizza_id', db.Integer, db.ForeignKey('Pizza.pizza_id'), primary_key=True),
-   db.Column('ingredient_id', db.Integer, db.ForeignKey('Ingredients.ingredient_id'), primary_key=True)
-)
 
 
 class Pizza(db.Model):
@@ -85,6 +82,34 @@ class Ingredient(db.Model):
        secondary=pizza_ingredients,
        back_populates='ingredients'
    )
+
+#order is connected to every other table too, how to deal with that? 
+class Order(db.Model):
+    __tablename__ = "Order"
+    order_id = db.Column(db.Integer, primary_key = True, autoincrement = True)
+    order_item_id = db.Column(db.Integer, foreign_key = True, nullable = False)
+    discount_code_id = db.Column(db.Integer, foreign_key = True, nullable = False)
+    customer_id = db.Column(db.Integer, foreign_key = True, nullable = False)
+    total_price = db.Column(db.Integer, nullable = False)
+
+    deliverypersons = db.relationship(
+        'DeliveryPerson',
+        secondary=deliveryPerson_Order,
+        back_populates='orders'
+    )
+
+
+class DeliveryPerson(db.Model):
+    __tablename__ = "DeliveryPerson"
+    delivery_person_id = db.Column(db.Integer, primary_key = True)
+    name = db.Column(db.String(100), nullable=False)
+    
+    orders = db.relationship(
+        'Order',
+        secondary=deliveryPerson_Order,
+        back_populates='deliverypersons'
+    )
+
    def __repr__(self):
        return f"id: {self.ingredient_id}, name: {self.name}, cost: {self.cost}"
 
