@@ -89,9 +89,9 @@ class Ingredient(db.Model):
 class Order(db.Model):
     __tablename__ = "Order"
     order_id = db.Column(db.Integer, primary_key = True, autoincrement = True)
-    order_item_id = db.Column(db.Integer, foreign_key = True, nullable = False)
-    discount_code_id = db.Column(db.Integer, foreign_key = True, nullable = False)
-    customer_id = db.Column(db.Integer, foreign_key = True, nullable = False)
+    order_item_id = db.Column(db.Integer, db.ForeignKey("OrderItem.order_item_id"), nullable = False)
+    discount_code_id = db.Column(db.Integer, db.ForeignKey("DiscountCode.discount_code_id"), nullable = False)
+    customer_id = db.Column(db.Integer, db.ForeignKey("Customer.customer_id"), nullable = False)
     total_price = db.Column(db.Integer, nullable = False)
 
     deliverypersons = db.relationship(
