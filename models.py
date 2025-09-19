@@ -24,7 +24,7 @@ discount_list = db.Table(
 )
 
 class Customer(db.Model):
-    __tablename__ = "Customers"
+    __tablename__ = "Customer"
     customer_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     first_name = db.Column(db.String(100), nullable=False)
     last_name = db.Column(db.String(100), nullable=False)
@@ -60,12 +60,18 @@ class Pizza(db.Model):
    __tablename__ = "Pizza"
    pizza_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
    name = db.Column(db.String(100), nullable=False)
+   price = db.Column(db.Numeric(5,2), nullable=False)
    description = db.Column(db.String(200), nullable=False)
    ingredients = db.relationship(
        'Ingredient',
        secondary=pizza_ingredients,
        back_populates='pizzas'
    )
+   def compute_and_set_price(self):
+       base_cost = sum(float(Ingredient.cost) for ingredient in self.ingredients)
+       margin = 0.4
+       vat = 0.09 #temp VAT for now
+       self.price = round(base_cost * (1+margin) * (1+vat), 2)
 
    def __repr__(self):
        return f"Pizza id: {self.pizza_id}, name: {self.name}"
@@ -85,21 +91,29 @@ class Ingredient(db.Model):
    def __repr__(self):
        return f"id: {self.ingredient_id}, name: {self.name}, cost: {self.cost}"
 
+class OrderItem(db.Model):
+    __tablename__ = "OrderItem"
+    order_item_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    order_id = db.Column(db.Integer, db.ForeignKey("Order.order_id"), nullable=False)
+    pizza_id = db.Column(db.Integer, db.ForeignKey("Pizza.pizza_id"), nullable=False)
+    quantity = db.Column(db.Integer, nullable=False)
+    unit_price = db.Column(db.Numeric(7,2), nullable=False)
+
 #order is connected to every other table too, how to deal with that? 
 class Order(db.Model):
     __tablename__ = "Order"
-    order_id = db.Column(db.Integer, primary_key = True, autoincrement = True)
-    order_item_id = db.Column(db.Integer, db.ForeignKey("OrderItem.order_item_id"), nullable = False)
-    discount_code_id = db.Column(db.Integer, db.ForeignKey("DiscountCode.discount_code_id"), nullable = False)
-    customer_id = db.Column(db.Integer, db.ForeignKey("Customer.customer_id"), nullable = False)
-    total_price = db.Column(db.Integer, nullable = False)
+    order_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    discount_code_id = db.Column(db.Integer, db.ForeignKey("DiscountCode.discount_code_id"), nullable=False)
+    delivery_person_id = db.Column(db.Integer, db.ForeignKey("DeliveryPerson.delivery_person_id"))
+    customer_id = db.Column(db.Integer, db.ForeignKey("Customer.customer_id"), nullable=False)
+    total_price = db.Column(db.Numeric(7,2), nullable=False)
 
+    order_items = db.relationship("OrderItem", backref="order", lazy=True)
     deliverypersons = db.relationship(
         'DeliveryPerson',
         secondary=deliveryPerson_Order,
         back_populates='orders'
     )
-
 
 class DeliveryPerson(db.Model):
     __tablename__ = "DeliveryPerson"
