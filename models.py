@@ -3,6 +3,12 @@ import os
 
 db = SQLAlchemy()
 
+discount_list = db.Table(
+    'discount_list',
+    db.Column('discount_code_id', db.Integer, db.ForeignKey('DiscountCode.discount_code_id'), primary_key=True),
+    db.Column('discount_type_id', db.Integer, db.ForeignKey('DiscountType.discount_type_id'), primary_key=True)
+)
+
 class Customer(db.Model):
     __tablename__ = "Customers"
     customer_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
@@ -21,7 +27,11 @@ class DiscountCode(db.Model):
     discount_code_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     code = db.Column(db.String(50), unique=True, nullable=False)
     is_redeemed = db.Column(db.Boolean, default=False, nullable=False)
-
+    discount_type = db.relationship(
+        'DiscountType',
+        secondary=discount_list,
+        back_populates='discount_code'
+    )
     def __repr__(self):
         return f"discount code id {self.discount_code_id}, code: {self.code}"
 
@@ -30,6 +40,17 @@ class DiscountType(db.Model):
     discount_type_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     name = db.Column(db.String(50), nullable=False)
     percent = db.Column(db.Numeric(5,2))
+    discount_code = db.relationship(
+        'DiscountCode',
+        secondary=discount_list,
+        back_populates='discount_type'
+    )
+
+    def __repr__(self):
+        return f"discount type id: {self.discount_type_id}, discount type name: {self.name}, discount percentage: {self.percent}"
+
+
+
 
 pizza_ingredients = db.Table(
    'pizza_ingredients',
@@ -40,7 +61,7 @@ pizza_ingredients = db.Table(
 
 class Pizza(db.Model):
    __tablename__ = "Pizza"
-   pizza_id = db.Column(db.Integer, primary_key=True)
+   pizza_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
    name = db.Column(db.String(100), nullable=False)
    description = db.Column(db.String(200), nullable=False)
    ingredients = db.relationship(
@@ -49,10 +70,13 @@ class Pizza(db.Model):
        back_populates='pizzas'
    )
 
+   def __repr__(self):
+       return f"Pizza id: {self.pizza_id}, name: {self.name}"
+
 
 class Ingredient(db.Model):
    __tablename__ = "Ingredients"
-   ingredient_id = db.Column(db.Integer, primary_key=True)
+   ingredient_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
    name = db.Column(db.String(100), nullable=False)
    cost = db.Column(db.Numeric(10, 2), nullable=False)
    vegetarian = db.Column(db.Boolean, nullable=False, default=False)
@@ -61,6 +85,8 @@ class Ingredient(db.Model):
        secondary=pizza_ingredients,
        back_populates='ingredients'
    )
+   def __repr__(self):
+       return f"id: {self.ingredient_id}, name: {self.name}, cost: {self.cost}"
 
    ###
 

@@ -1,5 +1,6 @@
 from flask import Flask, request
 from dotenv import load_dotenv
+from flask_migrate import Migrate
 import os
 from models import db
 
@@ -11,8 +12,8 @@ def create_app():
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
     db.init_app(app)
-    with app.app_context():
-        db.create_all()
+    migrate = Migrate(app, db)
+
 
     @app.route("/")
     def index():
