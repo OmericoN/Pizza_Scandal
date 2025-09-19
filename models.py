@@ -82,6 +82,8 @@ class Ingredient(db.Model):
        secondary=pizza_ingredients,
        back_populates='ingredients'
    )
+   def __repr__(self):
+       return f"id: {self.ingredient_id}, name: {self.name}, cost: {self.cost}"
 
 #order is connected to every other table too, how to deal with that? 
 class Order(db.Model):
@@ -110,8 +112,7 @@ class DeliveryPerson(db.Model):
         back_populates='deliverypersons'
     )
 
-   def __repr__(self):
-       return f"id: {self.ingredient_id}, name: {self.name}, cost: {self.cost}"
+
 
    ###
 
