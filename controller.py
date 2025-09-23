@@ -33,7 +33,9 @@ def menu():
 
 
 
+######## BELOW IS THE CONTROLLER FOR THE ADMIN DASHBOARD, THIS CAN ONLY BE ACCESSED USING AN ADMIN ACCOUNT
 
+#---------------------ADMIN DASHBOARD ---------------------------------
 
 @admin_bp.route('/admin/login', methods=['GET', 'POST'])
 def admin_login():
@@ -54,12 +56,6 @@ def admin_login():
             flash('Invalid username or password.', 'error')
     
     return render_template("admin_login.html")
-
-
-
-######## BELOW IS THE CONTROLLER FOR THE ADMIN DASHBOARD, THIS CAN ONLY BE ACCESSED USING AN ADMIN ACCOUNT
-
-#---------------------ADMIN DASHBOARD ---------------------------------
 
 @admin_bp.route('/admin/dashboard')
 def dashboard():
