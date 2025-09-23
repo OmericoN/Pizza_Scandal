@@ -3,6 +3,8 @@ from dotenv import load_dotenv
 from flask_migrate import Migrate
 import os
 from models import db
+from controller import admin_bp, main_bp
+
 
 def create_app():
     load_dotenv()
@@ -12,9 +14,13 @@ def create_app():
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
     db.init_app(app)
+    app.register_blueprint(main_bp)
+    app.register_blueprint(admin_bp)
+
     migrate = Migrate(app, db)
     
-
+    with app.app_context():
+        db.create_all()
 
     @app.route("/")
     def index():

@@ -1,59 +1,65 @@
 from flask_sqlalchemy import SQLAlchemy
+from werkzeug.security import generate_password_hash, check_password_hash
+from dotenv import load_dotenv
+from datetime import datetime
 import os
 
 db = SQLAlchemy()
 
 
-deliveryPerson_Order = db.Table(
-    'deliveryperson_order',
-    db.Column('delivery_person_id', db.Integer, db.ForeignKey('DeliveryPerson.delivery_person_id'), primary_key = True),
-    db.Column('order_id', db.Integer, db.ForeignKey('Order.order_id'), primary_key = True)
-)
 
-
-pizza_ingredients = db.Table(
-   'pizza_ingredients',
+pizza_ingredient = db.Table(
+   'pizza_ingredient',
    db.Column('pizza_id', db.Integer, db.ForeignKey('Pizza.pizza_id'), primary_key=True),
-   db.Column('ingredient_id', db.Integer, db.ForeignKey('Ingredients.ingredient_id'), primary_key=True)
+   db.Column('ingredient_id', db.Integer, db.ForeignKey('Ingredient.ingredient_id'), primary_key=True)
 )
 
-discount_list = db.Table(
-    'discount_list',
-    db.Column('discount_code_id', db.Integer, db.ForeignKey('DiscountCode.discount_code_id'), primary_key=True),
-    db.Column('discount_type_id', db.Integer, db.ForeignKey('DiscountType.discount_type_id'), primary_key=True)
-)
 
 class Customer(db.Model):
     __tablename__ = "Customer"
     customer_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     first_name = db.Column(db.String(100), nullable=False)
     last_name = db.Column(db.String(100), nullable=False)
-    email = db.Column(db.String(120), nullable=False)
+    email = db.Column(db.String(120), nullable=False, unique=True)
     telephone = db.Column(db.String(20), nullable=False)
     address = db.Column(db.String(200), nullable=False)
+    password_hash = db.Column(db.String(255), nullable=False)
+    def set_password(self, password):
+        # Add pepper to password before hashing
+        pepper = os.environ.get('PASSWORD_PEPPER', 'default-pepper-change-in-production')
+        peppered_password = password + pepper
+        self.password_hash = generate_password_hash(peppered_password)
+
+    def check_password(self, password):
+        # Add pepper to password before checking
+        pepper = os.environ.get('PASSWORD_PEPPER', 'default-pepper-change-in-production')
+        peppered_password = password + pepper
+        return check_password_hash(self.password_hash, peppered_password)
 
     def __repr__(self):
-        return f"<CustomerID {self.customer_id} First Name {self.first_name} address {self.address}"
-    
+        return f"<CustomerID {self.customer_id} First Name {self.first_name} address {self.address}>"
 
 class DiscountCode(db.Model):
     __tablename__="DiscountCode"
     discount_code_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     code = db.Column(db.String(50), unique=True, nullable=False)
     is_redeemed = db.Column(db.Boolean, default=False, nullable=False)
-    discount_type = db.relationship(
-        'DiscountType',
-        secondary=discount_list,
-        back_populates='discount_code'
-    )
+    # Foreign key to DiscountType
+    discount_type_id = db.Column(db.Integer, db.ForeignKey("DiscountType.discount_type_id"), nullable=False)
+
+    # Relationship to DiscountType
+    discount_type = db.relationship("DiscountType", back_populates="discount_codes")
+
     def __repr__(self):
-        return f"discount code id {self.discount_code_id}, code: {self.code}"
+        return f"DiscountCode id: {self.discount_code_id}, code: {self.code}, redeemed: {self.is_redeemed}"
 
 class DiscountType(db.Model):
     __tablename__="DiscountType"
     discount_type_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     name = db.Column(db.String(50), nullable=False)
     percent = db.Column(db.Numeric(5,2))
+
+    discount_codes = db.relationship("DiscountCode", back_populates="discount_type", lazy=True)
 
 
 class Pizza(db.Model):
@@ -64,28 +70,29 @@ class Pizza(db.Model):
    description = db.Column(db.String(200), nullable=False)
    ingredients = db.relationship(
        'Ingredient',
-       secondary=pizza_ingredients,
+       secondary=pizza_ingredient,
        back_populates='pizzas'
    )
    def compute_and_set_price(self):
-       base_cost = sum(float(Ingredient.cost) for ingredient in self.ingredients)
+       base_cost = sum(float(ingredient.cost) for ingredient in self.ingredients)
        margin = 0.4
        vat = 0.09 #temp VAT for now
        self.price = round(base_cost * (1+margin) * (1+vat), 2)
+       db.session.commit()
 
    def __repr__(self):
        return f"Pizza id: {self.pizza_id}, name: {self.name}"
 
 
 class Ingredient(db.Model):
-   __tablename__ = "Ingredients"
+   __tablename__ = "Ingredient"
    ingredient_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
    name = db.Column(db.String(100), nullable=False)
    cost = db.Column(db.Numeric(10, 2), nullable=False)
    vegetarian = db.Column(db.Boolean, nullable=False, default=False)
    pizzas = db.relationship(
        'Pizza',
-       secondary=pizza_ingredients,
+       secondary=pizza_ingredient,
        back_populates='ingredients'
    )
    def __repr__(self):
@@ -103,30 +110,38 @@ class OrderItem(db.Model):
 class Order(db.Model):
     __tablename__ = "Order"
     order_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    discount_code_id = db.Column(db.Integer, db.ForeignKey("DiscountCode.discount_code_id"), nullable=False)
-    delivery_person_id = db.Column(db.Integer, db.ForeignKey("DeliveryPerson.delivery_person_id"))
+    discount_code_id = db.Column(db.Integer, db.ForeignKey("DiscountCode.discount_code_id"), nullable=True)
     customer_id = db.Column(db.Integer, db.ForeignKey("Customer.customer_id"), nullable=False)
+    delivery_person_id = db.Column(db.Integer, db.ForeignKey("DeliveryPerson.delivery_person_id"))  # Enforces one-to-one relationship
     total_price = db.Column(db.Numeric(7,2), nullable=False)
+    time_stamp = db.Column(db.DateTime, default=datetime.utcnow)
 
     order_items = db.relationship("OrderItem", backref="order", lazy=True)
-    deliverypersons = db.relationship(
-        'DeliveryPerson',
-        secondary=deliveryPerson_Order,
-        back_populates='orders'
-    )
+    delivery_person = db.relationship("DeliveryPerson", backref="order", uselist=False)  # One-to-one relationship
 
 class DeliveryPerson(db.Model):
     __tablename__ = "DeliveryPerson"
-    delivery_person_id = db.Column(db.Integer, primary_key = True)
+    delivery_person_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     name = db.Column(db.String(100), nullable=False)
-    
-    orders = db.relationship(
-        'Order',
-        secondary=deliveryPerson_Order,
-        back_populates='deliverypersons'
-    )
 
+class Admin(db.Model):
+    __tablename__ = "Admin"
+    admin_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    username = db.Column(db.String(50), unique=True, nullable=False)
+    password_hash = db.Column(db.String(255), nullable=False)
+    def set_password(self, password):
+        # Add pepper to password before hashing
+        pepper = os.environ.get('PASSWORD_PEPPER', 'default-pepper-change-in-production')
+        peppered_password = password + pepper
+        self.password_hash = generate_password_hash(peppered_password)
 
+    def check_password(self, password):
+        # Add pepper to password before checking
+        pepper = os.environ.get('PASSWORD_PEPPER', 'default-pepper-change-in-production')
+        peppered_password = password + pepper
+        return check_password_hash(self.password_hash, peppered_password)
 
+    def __repr__(self):
+        return f"<Admin {self.username}>"
    ###
 
