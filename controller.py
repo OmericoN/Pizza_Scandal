@@ -22,7 +22,104 @@ def verify_password_with_pepper(password, password_hash):
     peppered_password = password + PEPPER
     return check_password_hash(password_hash, peppered_password)
 
+#-------------------------------
 
+
+@customer_bp.route('/customer/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        # Get form data
+        first_name = request.form.get('first_name')
+        last_name = request.form.get('last_name')
+        email = request.form.get('email')
+        telephone = request.form.get('telephone')
+        address = request.form.get('address')
+        password = request.form.get('password')
+        confirm_password = request.form.get('confirm_password')
+        
+        # Validation
+        if not all([first_name, last_name, email, telephone, address, password, confirm_password]):
+            flash('All fields are required.', 'error')
+            return render_template("customer_register.html")
+        
+        if password != confirm_password:
+            flash('Passwords do not match.', 'error')
+            return render_template("customer_register.html")
+        
+        if len(password) < 6:
+            flash('Password must be at least 6 characters long.', 'error')
+            return render_template("customer_register.html")
+        
+        # Check if email already exists
+        existing_customer = Customer.query.filter_by(email=email).first()
+        if existing_customer:
+            flash('Email address already registered. Please use a different email.', 'error')
+            return render_template("customer_register.html")
+        
+        try:
+            # Create new customer
+            from werkzeug.security import generate_password_hash
+            peppered_password = password + PEPPER
+            password_hash = generate_password_hash(peppered_password)
+            
+            new_customer = Customer(
+                first_name=first_name,
+                last_name=last_name,
+                email=email,
+                telephone=telephone,
+                address=address,
+                password_hash=password_hash
+            )
+            
+            db.session.add(new_customer)
+            db.session.commit()
+            
+            flash('Registration successful! You can now log in.', 'success')
+            return redirect(url_for('customer.login'))  # You'll need to create this login route too
+            
+        except Exception as e:
+            db.session.rollback()
+            flash('Registration failed. Please try again.', 'error')
+            return render_template("customer_register.html")
+    
+    return render_template("customer_register.html")
+
+# Add this after your customer registration route:
+
+@customer_bp.route('/customer/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        email = request.form.get('email')
+        password = request.form.get('password')
+        
+        # Validation
+        if not email or not password:
+            flash('Email and password are required.', 'error')
+            return render_template("customer_login.html")
+        
+        # Query the customer from the database
+        customer = Customer.query.filter_by(email=email).first()
+        
+        if customer and verify_password_with_pepper(password, customer.password_hash):
+            # Set session variables
+            session['customer_id'] = customer.customer_id
+            session['customer_email'] = customer.email
+            session['customer_name'] = f"{customer.first_name} {customer.last_name}"
+            flash('Login successful! Welcome back!', 'success')
+            return redirect(url_for('main.index'))  # Redirect to homepage or customer dashboard
+        else:
+            flash('Invalid email or password.', 'error')
+    
+    return render_template("customer_login.html")
+
+@customer_bp.route('/customer/logout')
+def logout():
+    # Clear customer session
+    session.pop('customer_id', None)
+    session.pop('customer_email', None)
+    session.pop('customer_name', None)
+    flash('Logged out successfully!', 'success')
+    return redirect(url_for('main.index'))
 
 @main_bp.route("/menu")
 def menu():

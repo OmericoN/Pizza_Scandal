@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 from flask_migrate import Migrate
 import os
 from models import db
-from controller import admin_bp, main_bp
+from controller import admin_bp, main_bp, customer_bp
 
 
 def create_app():
@@ -15,6 +15,7 @@ def create_app():
 
     db.init_app(app)
     app.register_blueprint(main_bp)
+    app.register_blueprint(customer_bp)
     app.register_blueprint(admin_bp)
 
     migrate = Migrate(app, db)

@@ -1,0 +1,379 @@
+{% extends "layout_v2.html" %}
+
+{% block title %}Customer Registration - Pizza Scandal{% endblock %}
+
+{% block content_wrapper %}
+<div class="registration-container">
+    <div class="container">
+        <div class="registration-wrapper">
+            <div class="registration-card">
+                <!-- Header -->
+                <div class="registration-header">
+                    <h1 class="registration-title">Create Your Account</h1>
+                    <p class="registration-subtitle">Join Pizza Scandal and start ordering your favorite pizzas!</p>
+                </div>
+
+                <!-- Flash Messages -->
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        <div class="flash-messages">
+                            {% for category, message in messages %}
+                                <div class="flash-message flash-{{ category }}">
+                                    <span>{{ message }}</span>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                {% endwith %}
+
+                <!-- Registration Form -->
+                <form method="POST" class="registration-form" id="registerForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="first_name" class="form-label">First Name *</label>
+                            <input type="text" 
+                                   id="first_name" 
+                                   name="first_name" 
+                                   class="form-input" 
+                                   required 
+                                   maxlength="50"
+                                   value="{{ request.form.first_name if request.form.first_name }}">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="last_name" class="form-label">Last Name *</label>
+                            <input type="text" 
+                                   id="last_name" 
+                                   name="last_name" 
+                                   class="form-input" 
+                                   required 
+                                   maxlength="50"
+                                   value="{{ request.form.last_name if request.form.last_name }}">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="email" class="form-label">Email Address *</label>
+                        <input type="email" 
+                               id="email" 
+                               name="email" 
+                               class="form-input" 
+                               required 
+                               maxlength="100"
+                               value="{{ request.form.email if request.form.email }}">
+                        <small class="form-help">We'll use this email for order confirmations</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="telephone" class="form-label">Phone Number *</label>
+                        <input type="tel" 
+                               id="telephone" 
+                               name="telephone" 
+                               class="form-input" 
+                               required 
+                               maxlength="15"
+                               placeholder="e.g., +1234567890"
+                               value="{{ request.form.telephone if request.form.telephone }}">
+                        <small class="form-help">For delivery coordination and order updates</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="address" class="form-label">Delivery Address *</label>
+                        <textarea id="address" 
+                                  name="address" 
+                                  class="form-textarea" 
+                                  required 
+                                  maxlength="255"
+                                  rows="3"
+                                  placeholder="Enter your full delivery address including street, city, postal code">{{ request.form.address if request.form.address }}</textarea>
+                        <small class="form-help">Please provide a complete address for accurate delivery</small>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="password" class="form-label">Password *</label>
+                            <input type="password" 
+                                   id="password" 
+                                   name="password" 
+                                   class="form-input" 
+                                   required 
+                                   minlength="6">
+                            <small class="form-help">At least 6 characters</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="confirm_password" class="form-label">Confirm Password *</label>
+                            <input type="password" 
+                                   id="confirm_password" 
+                                   name="confirm_password" 
+                                   class="form-input" 
+                                   required 
+                                   minlength="6">
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary btn-full">Create Account</button>
+                    </div>
+                </form>
+
+                <!-- Login Link -->
+                <div class="registration-footer">
+                    <p>Already have an account? <a href="{{ url_for('customer.login') }}" class="login-link">Sign in here</a></p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.registration-container {
+    min-height: 100vh;
+    background: linear-gradient(135deg, var(--warm) 0%, var(--background) 100%);
+    padding: var(--space-xl) 0;
+    display: flex;
+    align-items: center;
+}
+
+.registration-wrapper {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 80vh;
+}
+
+.registration-card {
+    background: var(--card-background);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-large);
+    padding: var(--space-xxl);
+    width: 100%;
+    max-width: 600px;
+    border: 1px solid var(--border);
+}
+
+.registration-header {
+    text-align: center;
+    margin-bottom: var(--space-xl);
+}
+
+.registration-title {
+    color: var(--text-primary);
+    font-size: 32px;
+    font-weight: 700;
+    margin-bottom: var(--space-sm);
+}
+
+.registration-subtitle {
+    color: var(--text-secondary);
+    font-size: 16px;
+    line-height: 1.5;
+}
+
+/* Flash Messages */
+.flash-messages {
+    margin-bottom: var(--space-lg);
+}
+
+.flash-message {
+    padding: 12px 16px;
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-sm);
+    font-weight: 500;
+}
+
+.flash-success {
+    background: rgba(39, 174, 96, 0.1);
+    color: var(--success);
+    border: 1px solid rgba(39, 174, 96, 0.2);
+}
+
+.flash-error {
+    background: rgba(231, 76, 60, 0.1);
+    color: var(--danger);
+    border: 1px solid rgba(231, 76, 60, 0.2);
+}
+
+/* Form Styles */
+.registration-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-lg);
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-md);
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+}
+
+.form-label {
+    font-weight: 600;
+    color: var(--text-primary);
+    font-size: 14px;
+}
+
+.form-input, .form-textarea {
+    padding: 12px 16px;
+    border: 2px solid var(--border);
+    border-radius: var(--radius-md);
+    font-size: 16px;
+    background: var(--background);
+    transition: all 0.3s ease;
+    font-family: var(--font-family);
+}
+
+.form-input:focus, .form-textarea:focus {
+    outline: none;
+    border-color: var(--brand);
+    box-shadow: 0 0 0 4px rgba(210, 105, 30, 0.1);
+}
+
+.form-textarea {
+    resize: vertical;
+    min-height: 80px;
+}
+
+.form-help {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+.form-actions {
+    margin-top: var(--space-lg);
+}
+
+.btn-full {
+    width: 100%;
+    padding: 16px;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.registration-footer {
+    text-align: center;
+    margin-top: var(--space-xl);
+    padding-top: var(--space-lg);
+    border-top: 1px solid var(--border);
+}
+
+.registration-footer p {
+    color: var(--text-secondary);
+    margin: 0;
+}
+
+.login-link {
+    color: var(--brand);
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.login-link:hover {
+    text-decoration: underline;
+}
+
+/* Form Validation Styles */
+.form-input:invalid:not(:focus):not(:placeholder-shown) {
+    border-color: var(--danger);
+}
+
+.form-input:valid:not(:focus):not(:placeholder-shown) {
+    border-color: var(--success);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .registration-container {
+        padding: var(--space-md) 0;
+    }
+    
+    .registration-card {
+        padding: var(--space-xl);
+        margin: 0 var(--space-md);
+    }
+    
+    .registration-title {
+        font-size: 28px;
+    }
+    
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 480px) {
+    .registration-card {
+        padding: var(--space-lg);
+        margin: 0 var(--space-sm);
+    }
+    
+    .registration-title {
+        font-size: 24px;
+    }
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('registerForm');
+    const password = document.getElementById('password');
+    const confirmPassword = document.getElementById('confirm_password');
+    
+    // Real-time password validation
+    function validatePasswords() {
+        if (password.value && confirmPassword.value) {
+            if (password.value === confirmPassword.value) {
+                confirmPassword.setCustomValidity('');
+                confirmPassword.style.borderColor = 'var(--success)';
+            } else {
+                confirmPassword.setCustomValidity('Passwords do not match');
+                confirmPassword.style.borderColor = 'var(--danger)';
+            }
+        } else {
+            confirmPassword.setCustomValidity('');
+            confirmPassword.style.borderColor = '';
+        }
+    }
+    
+    password.addEventListener('input', validatePasswords);
+    confirmPassword.addEventListener('input', validatePasswords);
+    
+    // Form submission validation
+    form.addEventListener('submit', function(e) {
+        validatePasswords();
+        
+        if (!form.checkValidity()) {
+            e.preventDefault();
+            
+            // Focus on first invalid field
+            const firstInvalidField = form.querySelector(':invalid');
+            if (firstInvalidField) {
+                firstInvalidField.focus();
+            }
+        }
+    });
+    
+    // Phone number formatting (basic)
+    const phoneInput = document.getElementById('telephone');
+    phoneInput.addEventListener('input', function(e) {
+        // Remove all non-digit characters except + at the beginning
+        let value = e.target.value.replace(/[^\d+]/g, '');
+        if (value.length > 1 && value.includes('+')) {
+            value = '+' + value.replace(/\+/g, '');
+        }
+        e.target.value = value;
+    });
+});
+</script>
+{% endblock %}
