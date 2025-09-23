@@ -1,1 +1,103 @@
+{% extends "layout_v2.html" %}
+{% block title %}Pizza Scandal - Welcome{% endblock %}
 
+{% block content %}
+<div class="auth-container">
+  <div class="auth-card">
+    <div class="auth-header">
+      <h1 class="brand-title">Pizza Scandal</h1>
+      <p class="brand-subtitle">Fresh pizzas delivered to your door</p>
+    </div>
+    
+    <div class="auth-buttons">
+      <a href="{{ url_for('main.customer_login') }}" class="btn btn-primary btn-large">
+        Log In to Your Account
+      </a>
+      <a href="{{ url_for('main.customer_register') }}" class="btn btn-secondary btn-large">
+        Create New Account
+      </a>
+    </div>
+    
+    <div class="admin-link">
+      <a href="{{ url_for('admin.admin_login') }}">Admin Login</a>
+    </div>
+  </div>
+</div>
+
+<style>
+.auth-container {
+  min-height: 80vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.auth-card {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 40px;
+  max-width: 400px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.auth-header {
+  margin-bottom: 32px;
+}
+
+.brand-title {
+  font-size: 2.5rem;
+  font-weight: 700;
+  margin-bottom: 8px;
+  color: #1e293b;
+}
+
+.brand-subtitle {
+  color: #64748b;
+  font-size: 1rem;
+  margin: 0;
+}
+
+.auth-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.btn-large {
+  padding: 12px 24px;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.admin-link {
+  padding-top: 16px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.admin-link a {
+  color: #64748b;
+  text-decoration: none;
+  font-size: 0.875rem;
+}
+
+.admin-link a:hover {
+  color: #1e293b;
+  text-decoration: underline;
+}
+
+@media (max-width: 480px) {
+  .auth-card {
+    padding: 24px;
+  }
+  
+  .brand-title {
+    font-size: 2rem;
+  }
+}
+</style>
+{% endblock %}
