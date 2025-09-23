@@ -1,5 +1,5 @@
 from flask import Blueprint, app, render_template, request, redirect, url_for, flash, session
-from models import db, Customer, Order, OrderItem, DeliveryPerson, DiscountCode, DiscountType, Admin
+from models import db, Customer, Order, OrderItem, DeliveryPerson, DiscountCode, DiscountType, Admin, Pizza, pizza_ingredient, Ingredient
 from werkzeug.security import check_password_hash
 import os
 from datetime import datetime
@@ -22,6 +22,19 @@ def verify_password_with_pepper(password, password_hash):
     peppered_password = password + PEPPER
     return check_password_hash(password_hash, peppered_password)
 
+
+
+@main_bp.route("/menu")
+def menu():
+    pizzas = Pizza.query.all()
+    return {"pizzas": [pizza.name for pizza in pizzas]}
+
+
+
+
+
+
+
 @admin_bp.route('/admin/login', methods=['GET', 'POST'])
 def admin_login():
     if request.method == 'POST':
@@ -42,16 +55,110 @@ def admin_login():
     
     return render_template("admin_login.html")
 
+
+
+######## BELOW IS THE CONTROLLER FOR THE ADMIN DASHBOARD, THIS CAN ONLY BE ACCESSED USING AN ADMIN ACCOUNT
+
+#---------------------ADMIN DASHBOARD ---------------------------------
+
 @admin_bp.route('/admin/dashboard')
 def dashboard():
     if 'admin_id' not in session:
-        flash('Please log in to access the dashboard.', 'error')
         return redirect(url_for('admin.admin_login'))
-    return render_template("admin_dashboard.html")
+    
+    # Get counts for dashboard overview
+    stats = {
+        'customers': Customer.query.count(),
+        'pizzas': Pizza.query.count(),
+        'ingredients': Ingredient.query.count(),
+        'orders': Order.query.count(),
+        'delivery_people': DeliveryPerson.query.count(),
+        'discount_codes': DiscountCode.query.count(),
+        'discount_types': DiscountType.query.count()
+    }
+    
+    # Get recent data for dashboard
+    recent_customers = Customer.query.order_by(Customer.customer_id.desc()).limit(5).all()
+    recent_orders = Order.query.order_by(Order.order_id.desc()).limit(5).all()
+    
+    return render_template("admin_dashboard.html", stats=stats, recent_customers=recent_customers, recent_orders=recent_orders)
+
+################ DONE ############
+@admin_bp.route('/admin/logout')
+def logout():
+    session.clear()
+    flash('Logged out successfully!', 'success')
+    return redirect(url_for('admin.admin_login'))
+####################################
+
+# ---------------------- CUSTOMER ADMIN -------------------------
+# Update your existing customers route:
+@admin_bp.route('/admin/customers')
+def customers():
+    if 'admin_id' not in session:
+        return redirect(url_for('admin.admin_login'))
+    
+    customers = Customer.query.order_by(Customer.customer_id.asc()).all()
+    
+    # Calculate basic stats
+    stats = {
+        'total_customers': len(customers),
+        'customers_with_orders': len([c for c in customers if hasattr(c, 'orders') and c.orders]),
+    }
+    
+    return render_template("admin_customers.html", customers=customers, stats=stats)
+# --------------------PIZZA ADMIN-----------------------------------
+# Pizza Management
+@admin_bp.route('/admin/pizzas')
+def pizzas():
+    if 'admin_id' not in session:
+        return redirect(url_for('admin.admin_login'))
+    
+    # Order pizzas by ID (ascending)
+    pizzas = Pizza.query.order_by(Pizza.pizza_id.asc()).all()
+    return render_template("admin_pizzas.html", pizzas=pizzas)
+
+# ---------------------------------------------------------------------#
+
+#--------------------INGREDIENTS ADMIN ----------------------------------
+# Your existing ingredients route is already correct:
+@admin_bp.route('/admin/ingredients')
+def ingredients():
+    if 'admin_id' not in session:
+        return redirect(url_for('admin.admin_login'))
+    
+    # Order ingredients by ID for consistency
+    ingredients = Ingredient.query.order_by(Ingredient.ingredient_id.asc()).all()
+    return render_template("admin_ingredients.html", ingredients=ingredients)
 
 
+# ---------------------DELIVERY PERSON ADMIN -------------------------------
+@admin_bp.route('/admin/delivery-people')
+def delivery_people():
+    if 'admin_id' not in session:
+        return redirect(url_for('admin.admin_login'))
+    delivery_people = DeliveryPerson.query.all()
+    return render_template("admin_delivery_people.html", delivery_people=delivery_people)
 
-@main_bp.route("/menu")
-def menu():
-    pizzas = Pizza.query.all()
-    return {"pizzas": [pizza.name for pizza in pizzas]}
+#------------------------DISCOUNT ADMIN -----------------------------------
+@admin_bp.route('/admin/discount-types')
+def discount_types():
+    if 'admin_id' not in session:
+        return redirect(url_for('admin.admin_login'))
+    discount_types = DiscountType.query.all()
+    return render_template("admin_discount_types.html", discount_types=discount_types)
+
+@admin_bp.route('/admin/discount-codes')
+def discount_codes():
+    if 'admin_id' not in session:
+        return redirect(url_for('admin.admin_login'))
+    discount_codes = DiscountCode.query.all()
+    return render_template("admin_discount_codes.html", discount_codes=discount_codes)
+
+#------------------------ORDERS ADMIN --------------------------------------
+@admin_bp.route('/admin/orders')
+def orders():
+    if 'admin_id' not in session:
+        return redirect(url_for('admin.admin_login'))
+    orders = Order.query.order_by(Order.order_id.desc()).all()
+    return render_template("admin_orders.html", orders=orders)

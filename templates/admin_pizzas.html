@@ -1,0 +1,455 @@
+{% extends "layout_v2.html" %}
+
+{% block title %}Pizza Management - Pizza Scandal{% endblock %}
+
+{% block content_wrapper %}
+<div class="dashboard-container">
+    <!-- Header -->
+    <div class="dashboard-header">
+        <div class="container">
+            <div class="header-content">
+                <div>
+                    <h1 class="text-h1">Pizza Management</h1>
+                    <p class="text-body-small">View all pizzas and their details</p>
+                </div>
+                <div class="header-actions">
+                    <a href="{{ url_for('admin.dashboard') }}" class="btn btn-secondary">Back to Dashboard</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="container">
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <div class="flash-message flash-{{ category }}">
+                            <span>{{ message }}</span>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <!-- Search Bar -->
+    <div class="container">
+        <div class="search-container">
+            <input type="text" id="pizzaSearch" class="search-input" placeholder="Search pizzas by name or ingredients...">
+            <div class="search-stats">
+                <span id="pizzaCount">{{ pizzas|length }}</span> pizzas found
+            </div>
+        </div>
+    </div>
+
+    <!-- Pizzas Table -->
+    <div class="container">
+        <div class="table-container">
+            <table class="pizza-table">
+                <thead>
+                    <tr>
+                        <th class="id-column">ID</th>
+                        <th class="name-column">Name</th>
+                        <th class="description-column">Description</th>
+                        <th class="ingredients-column">Ingredients</th>
+                        <th class="price-column">Price</th>
+                        <th class="info-column">Details</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for pizza in pizzas %}
+                    <tr class="pizza-row">
+                        <td class="id-cell">{{ pizza.pizza_id }}</td>
+                        <td class="name-cell">
+                            <div class="pizza-name">{{ pizza.name }}</div>
+                        </td>
+                        <td class="description-cell">
+                            <div class="description-text" title="{{ pizza.description }}">
+                                {{ pizza.description[:60] }}{% if pizza.description|length > 60 %}...{% endif %}
+                            </div>
+                        </td>
+                        <td class="ingredients-cell">
+                            <div class="ingredients-list">
+                                {% for ingredient in pizza.ingredients %}
+                                    <span class="ingredient-tag {% if ingredient.vegetarian %}vegetarian{% endif %}">
+                                        {{ ingredient.name }}
+                                        <span class="ingredient-cost">${{ "%.2f"|format(ingredient.cost) }}</span>
+                                    </span>
+                                {% endfor %}
+                            </div>
+                        </td>
+                        <td class="price-cell">
+                            <div class="price-display">
+                                <span class="price-amount">${{ "%.2f"|format(pizza.price) }}</span>
+                            </div>
+                        </td>
+                        <td class="info-cell">
+                            <div class="pizza-stats">
+                                <div class="stat-item">
+                                    <span class="stat-label">Ingredients:</span>
+                                    <span class="stat-value">{{ pizza.ingredients|length }}</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">Cost:</span>
+                                    <span class="stat-value">${{ "%.2f"|format(pizza.ingredients|sum(attribute='cost')) }}</span>
+                                </div>
+                                {% set vegetarian_count = pizza.ingredients|selectattr('vegetarian')|list|length %}
+                                {% if vegetarian_count == pizza.ingredients|length and pizza.ingredients|length > 0 %}
+                                    <span class="vegetarian-badge">🌱 Vegetarian</span>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" class="no-data">No pizzas found</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Summary Stats -->
+    <div class="container">
+        <div class="stats-container">
+            <div class="stat-card">
+                <div class="stat-number">{{ pizzas|length }}</div>
+                <div class="stat-label">Total Pizzas</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">${{ "%.2f"|format(pizzas|map(attribute='price')|sum) }}</div>
+                <div class="stat-label">Total Menu Value</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">${{ "%.2f"|format(pizzas|map(attribute='price')|list|min if pizzas else 0) }}</div>
+                <div class="stat-label">Cheapest Pizza</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">${{ "%.2f"|format(pizzas|map(attribute='price')|list|max if pizzas else 0) }}</div>
+                <div class="stat-label">Most Expensive</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.dashboard-container {
+    min-height: 100vh;
+    background: var(--background);
+}
+
+.dashboard-header {
+    background: var(--card-background);
+    border-bottom: 1px solid var(--border);
+    padding: var(--space-lg) 0;
+    margin-bottom: var(--space-xl);
+}
+
+.header-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.header-actions {
+    display: flex;
+    gap: var(--space-md);
+}
+
+/* Search Container */
+.search-container {
+    background: var(--card-background);
+    border-radius: var(--radius-lg);
+    padding: var(--space-lg);
+    margin-bottom: var(--space-lg);
+    box-shadow: var(--shadow-subtle);
+    border: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-md);
+}
+
+.search-input {
+    flex: 1;
+    padding: 12px 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    font-size: 16px;
+    background: var(--background);
+}
+
+.search-input:focus {
+    outline: none;
+    border-color: var(--brand);
+    box-shadow: 0 0 0 3px rgba(210, 105, 30, 0.1);
+}
+
+.search-stats {
+    color: var(--text-secondary);
+    font-size: 14px;
+    font-weight: 500;
+}
+
+/* Table Container */
+.table-container {
+    background: var(--card-background);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-subtle);
+    border: 1px solid var(--border);
+    overflow: hidden;
+    margin-bottom: var(--space-xl);
+}
+
+/* Table Styles */
+.pizza-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--font-family);
+}
+
+.pizza-table thead {
+    background: #f8f9fa;
+}
+
+.pizza-table th {
+    padding: 16px 12px;
+    text-align: left;
+    font-weight: 600;
+    color: var(--text-primary);
+    font-size: 16px;
+    border-bottom: 2px solid var(--border);
+}
+
+.pizza-table td {
+    padding: 16px 12px;
+    border-bottom: 1px solid #e9ecef;
+    color: var(--text-primary);
+    vertical-align: top;
+}
+
+.pizza-row:hover {
+    background-color: #f8f9fa;
+}
+
+/* Column Widths */
+.id-column { width: 60px; }
+.name-column { width: 150px; }
+.description-column { width: 200px; }
+.ingredients-column { width: 250px; }
+.price-column { width: 100px; }
+.info-column { width: 180px; }
+
+/* Cell Styling */
+.id-cell {
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+.pizza-name {
+    font-weight: 600;
+    color: var(--text-primary);
+    font-size: 16px;
+}
+
+.description-text {
+    color: var(--text-secondary);
+    font-size: 14px;
+    line-height: 1.4;
+    cursor: help;
+}
+
+.ingredients-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.ingredient-tag {
+    background: var(--warm);
+    color: var(--brand-dark);
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 60px;
+}
+
+.ingredient-tag.vegetarian {
+    background: rgba(39, 174, 96, 0.1);
+    color: var(--success);
+    border: 1px solid rgba(39, 174, 96, 0.2);
+}
+
+.ingredient-cost {
+    font-size: 10px;
+    opacity: 0.8;
+    margin-top: 2px;
+}
+
+.price-display {
+    text-align: center;
+}
+
+.price-amount {
+    font-weight: 700;
+    color: var(--brand);
+    font-size: 18px;
+}
+
+.pizza-stats {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.stat-item {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+}
+
+.stat-label {
+    color: var(--text-secondary);
+}
+
+.stat-value {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.vegetarian-badge {
+    background: rgba(39, 174, 96, 0.1);
+    color: var(--success);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 10px;
+    text-align: center;
+    border: 1px solid rgba(39, 174, 96, 0.2);
+}
+
+/* Summary Stats */
+.stats-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--space-lg);
+    margin-top: var(--space-xl);
+}
+
+.stat-card {
+    background: var(--card-background);
+    padding: var(--space-lg);
+    border-radius: var(--radius-lg);
+    text-align: center;
+    box-shadow: var(--shadow-subtle);
+    border: 1px solid var(--border);
+}
+
+.stat-number {
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--brand);
+    margin-bottom: var(--space-sm);
+}
+
+.stat-card .stat-label {
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    font-size: 12px;
+    letter-spacing: 0.5px;
+}
+
+/* Hidden rows for search */
+.pizza-row.hidden {
+    display: none;
+}
+
+.no-data {
+    text-align: center;
+    color: var(--text-muted);
+    font-style: italic;
+    padding: 40px 20px;
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+    .ingredients-column { width: 200px; }
+    .info-column { width: 150px; }
+}
+
+@media (max-width: 768px) {
+    .header-content {
+        flex-direction: column;
+        gap: var(--space-md);
+        text-align: center;
+    }
+    
+    .search-container {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .pizza-table {
+        font-size: 12px;
+    }
+    
+    .pizza-table th,
+    .pizza-table td {
+        padding: 8px 6px;
+    }
+    
+    .ingredient-tag {
+        font-size: 10px;
+        padding: 2px 4px;
+        min-width: 50px;
+    }
+    
+    .stats-container {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Search functionality
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('pizzaSearch');
+    const pizzaRows = document.querySelectorAll('.pizza-row');
+    const pizzaCount = document.getElementById('pizzaCount');
+
+    searchInput.addEventListener('input', function() {
+        const searchTerm = this.value.toLowerCase();
+        let visibleCount = 0;
+
+        pizzaRows.forEach(row => {
+            const name = row.querySelector('.pizza-name').textContent.toLowerCase();
+            const description = row.querySelector('.description-text').textContent.toLowerCase();
+            const ingredients = Array.from(row.querySelectorAll('.ingredient-tag'))
+                .map(tag => tag.textContent.toLowerCase())
+                .join(' ');
+            
+            if (name.includes(searchTerm) || 
+                description.includes(searchTerm) || 
+                ingredients.includes(searchTerm)) {
+                row.classList.remove('hidden');
+                visibleCount++;
+            } else {
+                row.classList.add('hidden');
+            }
+        });
+
+        pizzaCount.textContent = visibleCount;
+    });
+});
+</script>
+{% endblock %}

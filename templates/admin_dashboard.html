@@ -1,0 +1,295 @@
+{% extends "layout_v2.html" %}
+
+{% block title %}Admin Dashboard - Pizza Scandal{% endblock %}
+
+{% block content_wrapper %}
+<div class="dashboard-container">
+    <!-- Header -->
+    <div class="dashboard-header">
+        <div class="container">
+            <div class="header-content">
+                <div>
+                    <h1 class="text-h1">Admin Dashboard</h1>
+                    <p class="text-body-small">Welcome back, {{ session['admin_username'] }}</p>
+                </div>
+                <div class="header-actions">
+                    <a href="{{ url_for('admin.logout') }}" class="btn btn-secondary">Logout</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stats Overview -->
+    <div class="container">
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon">👥</div>
+                <div class="stat-content">
+                    <div class="stat-number">{{ stats.customers }}</div>
+                    <div class="stat-label">Customers</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">🍕</div>
+                <div class="stat-content">
+                    <div class="stat-number">{{ stats.pizzas }}</div>
+                    <div class="stat-label">Pizzas</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">🥬</div>
+                <div class="stat-content">
+                    <div class="stat-number">{{ stats.ingredients }}</div>
+                    <div class="stat-label">Ingredients</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">📦</div>
+                <div class="stat-content">
+                    <div class="stat-number">{{ stats.orders }}</div>
+                    <div class="stat-label">Orders</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">🚚</div>
+                <div class="stat-content">
+                    <div class="stat-number">{{ stats.delivery_people }}</div>
+                    <div class="stat-label">Drivers</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">🎫</div>
+                <div class="stat-content">
+                    <div class="stat-number">{{ stats.discount_codes }}</div>
+                    <div class="stat-label">Discount Codes</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Management Sections -->
+        <div class="management-grid">
+            <!-- Customers -->
+            <div class="management-card">
+                <div class="card-header">
+                    <h3 class="text-h3">Customer Management</h3>
+                    <a href="{{ url_for('admin.customers') }}" class="btn btn-primary">Manage Customers</a>
+                </div>
+                <div class="card-content">
+                    <p class="text-body-small">View, edit, and manage customer accounts</p>
+                    {% if recent_customers %}
+                        <div class="recent-items">
+                            <h4>Recent Customers:</h4>
+                            {% for customer in recent_customers %}
+                                <div class="recent-item">
+                                    {{ customer.first_name }} {{ customer.last_name }} - {{ customer.email }}
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Pizzas -->
+            <div class="management-card">
+                <div class="card-header">
+                    <h3 class="text-h3">Pizza Management</h3>
+                    <a href="{{ url_for('admin.pizzas') }}" class="btn btn-primary">Manage Pizzas</a>
+                </div>
+                <div class="card-content">
+                    <p class="text-body-small">Add, edit, and remove pizzas from the menu</p>
+                </div>
+            </div>
+
+            <!-- Ingredients -->
+            <div class="management-card">
+                <div class="card-header">
+                    <h3 class="text-h3">Ingredient Management</h3>
+                    <a href="{{ url_for('admin.ingredients') }}" class="btn btn-primary">Manage Ingredients</a>
+                </div>
+                <div class="card-content">
+                    <p class="text-body-small">Manage pizza ingredients and their costs</p>
+                </div>
+            </div>
+
+            <!-- Orders -->
+            <div class="management-card">
+                <div class="card-header">
+                    <h3 class="text-h3">Order Management</h3>
+                    <a href="{{ url_for('admin.orders') }}" class="btn btn-primary">View Orders</a>
+                </div>
+                <div class="card-content">
+                    <p class="text-body-small">View and manage customer orders</p>
+                </div>
+            </div>
+
+            <!-- Delivery People -->
+            <div class="management-card">
+                <div class="card-header">
+                    <h3 class="text-h3">Delivery Management</h3>
+                    <a href="{{ url_for('admin.delivery_people') }}" class="btn btn-primary">Manage Drivers</a>
+                </div>
+                <div class="card-content">
+                    <p class="text-body-small">Add and manage delivery personnel</p>
+                </div>
+            </div>
+
+            <!-- Discounts -->
+            <div class="management-card">
+                <div class="card-header">
+                    <h3 class="text-h3">Discount Management</h3>
+                    <a href="{{ url_for('admin.discount_types') }}" class="btn btn-primary">Manage Discounts</a>
+                </div>
+                <div class="card-content">
+                    <p class="text-body-small">Create and manage discount codes and types</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.dashboard-container {
+    min-height: 100vh;
+    background: var(--background);
+}
+
+.dashboard-header {
+    background: var(--card-background);
+    border-bottom: 1px solid var(--border);
+    padding: var(--space-lg) 0;
+    margin-bottom: var(--space-xl);
+}
+
+.header-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.header-actions {
+    display: flex;
+    gap: var(--space-md);
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--space-lg);
+    margin-bottom: var(--space-xxl);
+}
+
+.stat-card {
+    background: var(--card-background);
+    border-radius: var(--radius-lg);
+    padding: var(--space-lg);
+    box-shadow: var(--shadow-subtle);
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    transition: all 0.2s ease;
+}
+
+.stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-medium);
+}
+
+.stat-icon {
+    font-size: 32px;
+    width: 60px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, var(--brand) 0%, var(--brand-light) 100%);
+    border-radius: var(--radius-md);
+    color: white;
+}
+
+.stat-number {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--text-primary);
+    line-height: 1;
+}
+
+.stat-label {
+    font-size: 14px;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.management-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    gap: var(--space-lg);
+}
+
+.management-card {
+    background: var(--card-background);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-subtle);
+    border: 1px solid var(--border);
+    overflow: hidden;
+    transition: all 0.2s ease;
+}
+
+.management-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-medium);
+}
+
+.card-header {
+    padding: var(--space-lg);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.card-content {
+    padding: var(--space-lg);
+}
+
+.recent-items {
+    margin-top: var(--space-md);
+}
+
+.recent-items h4 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: var(--space-sm);
+}
+
+.recent-item {
+    font-size: 12px;
+    color: var(--text-secondary);
+    padding: var(--space-xs) 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.recent-item:last-child {
+    border-bottom: none;
+}
+
+@media (max-width: 768px) {
+    .header-content {
+        flex-direction: column;
+        gap: var(--space-md);
+        text-align: center;
+    }
+    
+    .stats-grid {
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    }
+    
+    .management-grid {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+{% endblock %}

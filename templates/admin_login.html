@@ -1,25 +1,99 @@
-{% extends "layout.html" %}
+{% extends "layout_v2.html" %}
 
-{% block title %}
-Admin Login
-{% endblock %}
+{% block title %}Admin Login - Pizza Scandal{% endblock %}
 
 {% block content %}
-<div class="container mt-5">
-    <h1 class="text-center">Admin Login</h1>
-    <form method="POST" action="{{ url_for('admin.admin_login') }}" class="mt-4">
-        <div class="mb-3">
-            <label for="username" class="form-label">Username:</label>
-            <input type="text" id="username" name="username" class="form-control" required>
+<div class="auth-card">
+    <!-- Logo -->
+    <div class="logo">
+        <div class="logo-icon">🍕</div>
+        <div class="logo-text">Pizza Scandal</div>
+    </div>
+    
+    <!-- Header -->
+    <div class="auth-header">
+        <h1 class="auth-title">Welcome back</h1>
+        <p class="auth-subtitle">Sign in to your admin account</p>
+        <div class="badge badge-brand mt-3">
+            Admin Portal
         </div>
-        <div class="mb-3">
-            <label for="password" class="form-label">Password:</label>
-            <input type="password" id="password" name="password" class="form-control" required>
+    </div>
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="flash-messages">
+                {% for category, message in messages %}
+                    <div class="flash-message flash-{{ category }}">
+                        <span>{{ message }}</span>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <!-- Login Form -->
+    <form method="POST" action="{{ url_for('admin.admin_login') }}" id="loginForm">
+        <div class="form-group">
+            <label for="username" class="form-label">Username</label>
+            <input 
+                type="text" 
+                id="username" 
+                name="username" 
+                class="form-input" 
+                placeholder="Enter your username"
+                required
+                autocomplete="username"
+            >
         </div>
-        <button type="submit" class="btn btn-primary w-100">Login</button>
+        
+        <div class="form-group">
+            <label for="password" class="form-label">Password</label>
+            <input 
+                type="password" 
+                id="password" 
+                name="password" 
+                class="form-input" 
+                placeholder="Enter your password"
+                required
+                autocomplete="current-password"
+            >
+        </div>
+        
+        <button type="submit" class="btn btn-primary btn-full" id="loginBtn">
+            <span class="btn-text">Sign In</span>
+        </button>
     </form>
-    <div class="text-center mt-3">
-        <a href="{{ url_for('main.index') }}" class="btn btn-link">← Back to Home</a>
+
+    <!-- Footer -->
+    <div class="text-center mt-4">
+        <a href="{{ url_for('main.index') }}" class="btn btn-link">
+            ← Back to Home
+        </a>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Add loading state to button on form submit
+document.getElementById('loginForm').addEventListener('submit', function(e) {
+    const btn = document.getElementById('loginBtn');
+    btn.classList.add('btn-loading');
+    btn.disabled = true;
+});
+
+// Add subtle animations
+document.addEventListener('DOMContentLoaded', function() {
+    const card = document.querySelector('.auth-card');
+    card.style.opacity = '0';
+    card.style.transform = 'translateY(20px)';
+    
+    setTimeout(() => {
+        card.style.transition = 'all 0.6s cubic-bezier(0.4, 0, 0.2, 1)';
+        card.style.opacity = '1';
+        card.style.transform = 'translateY(0)';
+    }, 100);
+});
+</script>
 {% endblock %}
