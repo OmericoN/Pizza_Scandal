@@ -15,15 +15,6 @@ admin_bp = Blueprint('admin', __name__)
 def index():
     return render_template("index.html")
 
-# Customer login and register routes
-@main_bp.route("/customer/login")
-def customer_login():
-    return render_template("customer_login.html")
-
-@main_bp.route("/customer/register")
-def customer_register():
-    return render_template("customer_register.html")
-
 PEPPER = os.environ.get('PASSWORD_PEPPER', 'default-pepper-change-in-production')
 
 def verify_password_with_pepper(password, password_hash):
@@ -264,3 +255,12 @@ def orders():
         return redirect(url_for('admin.admin_login'))
     orders = Order.query.order_by(Order.order_id.desc()).all()
     return render_template("admin_orders.html", orders=orders)
+
+# add these simple routes so the index page can redirect to them without errors
+@main_bp.route("/customer/login", methods=["GET"])
+def customer_login():
+    return render_template("customer_login.html")
+
+@main_bp.route("/customer/register", methods=["GET"])
+def customer_register():
+    return render_template("customer_register.html")
