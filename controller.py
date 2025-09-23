@@ -23,7 +23,7 @@ def verify_password_with_pepper(password, password_hash):
     return check_password_hash(password_hash, peppered_password)
 
 #-------------------------------
-
+#hwllo
 
 @customer_bp.route('/customer/register', methods=['GET', 'POST'])
 def register():
