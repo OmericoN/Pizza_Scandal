@@ -21,14 +21,14 @@
 
     <!-- Search Bar -->
     <div class="container">
-        <div class="search-container">
+        <div class="search-container" data-total-customers="{{ stats.total_count }}">
             <div class="search-box">
                 <input type="text" id="customerSearch" class="search-input" 
                        placeholder="Search by name, email, phone, or address...">
                 <div class="search-icon">🔍</div>
             </div>
             <div class="search-stats">
-                <span id="customerCount">{{ customers|length }}</span> customers found
+                <span id="customerCount">{{ stats.total_count }}</span> customers found
             </div>
         </div>
     </div>
@@ -79,11 +79,11 @@
     <div class="container">
         <div class="stats-container">
             <div class="stat-card">
-                <div class="stat-number">{{ customers|length }}</div>
+                <div class="stat-number">{{ stats.total_customers }}</div>
                 <div class="stat-label">Total Customers</div>
             </div>
             <div class="stat-card">
-                <div class="stat-number">{{ customers|length }}</div>
+                <div class="stat-number">{{ stats.total_customers }}</div>
                 <div class="stat-label">Registered Users</div>
             </div>
             <div class="stat-card">
@@ -100,6 +100,7 @@
 {% endblock %}
 
 {% block extra_css %}
+<!-- Keep all your existing CSS exactly the same -->
 <style>
 .dashboard-container {
     min-height: 100vh;
@@ -387,11 +388,15 @@
 
 {% block extra_js %}
 <script>
-// Search functionality
+// Fixed JavaScript - NO template variables
 document.addEventListener('DOMContentLoaded', function() {
     const searchInput = document.getElementById('customerSearch');
     const customerCards = document.querySelectorAll('.customer-card');
     const customerCount = document.getElementById('customerCount');
+    const searchContainer = document.querySelector('.search-container');
+    
+    // Get total count from data attribute instead of template variable
+    const totalCount = parseInt(searchContainer.dataset.totalCustomers);
 
     searchInput.addEventListener('input', function() {
         const searchTerm = this.value.toLowerCase().trim();
@@ -400,7 +405,7 @@ document.addEventListener('DOMContentLoaded', function() {
         customerCards.forEach(card => {
             const searchData = card.dataset.search;
             
-            if (searchData && searchData.includes(searchTerm)) {
+            if (!searchTerm || (searchData && searchData.includes(searchTerm))) {
                 card.classList.remove('hidden');
                 visibleCount++;
             } else {
@@ -409,34 +414,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         customerCount.textContent = visibleCount;
-        
-        // Show/hide "no results" message
-        const customersGrid = document.getElementById('customersGrid');
-        const noResults = document.getElementById('noResults');
-        
-        if (visibleCount === 0 && searchTerm !== '') {
-            if (!noResults) {
-                const noResultsDiv = document.createElement('div');
-                noResultsDiv.id = 'noResults';
-                noResultsDiv.className = 'no-customers';
-                noResultsDiv.innerHTML = `
-                    <h3>No customers found</h3>
-                    <p>No customers match your search for "${searchTerm}"</p>
-                `;
-                customersGrid.appendChild(noResultsDiv);
-            }
-        } else if (noResults) {
-            noResults.remove();
-        }
-    });
-
-    // Clear search with Escape key
-    searchInput.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape') {
-            this.value = '';
-            this.dispatchEvent(new Event('input'));
-            this.blur();
-        }
     });
 });
 </script>

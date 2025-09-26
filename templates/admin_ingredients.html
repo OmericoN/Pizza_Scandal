@@ -24,7 +24,7 @@
         <div class="search-container">
             <input type="text" id="ingredientSearch" class="search-input" placeholder="Search ingredients by name...">
             <div class="search-stats">
-                <span id="ingredientCount">{{ ingredients|length }}</span> ingredients found
+                <span id="ingredientCount">{{ stats.total_count }}</span> ingredients found
             </div>
         </div>
     </div>
@@ -62,15 +62,15 @@
                             {% endif %}
                         </td>
                         <td class="usage-cell">
-                            {% if ingredient.pizzas %}
+                            {% if ingredient.pizza_count > 0 %}
                                 <div class="pizza-usage">
-                                    <span class="usage-count">{{ ingredient.pizzas|length }} pizza(s)</span>
+                                    <span class="usage-count">{{ ingredient.pizza_count }} pizza(s)</span>
                                     <div class="pizza-list">
-                                        {% for pizza in ingredient.pizzas[:2] %}
-                                            <span class="pizza-tag">{{ pizza.name }}</span>
+                                        {% for pizza_name in ingredient.pizza_names %}
+                                            <span class="pizza-tag">{{ pizza_name }}</span>
                                         {% endfor %}
-                                        {% if ingredient.pizzas|length > 2 %}
-                                            <span class="more-pizzas">+{{ ingredient.pizzas|length - 2 }} more</span>
+                                        {% if ingredient.has_more_pizzas %}
+                                            <span class="more-pizzas">+{{ ingredient.additional_pizzas }} more</span>
                                         {% endif %}
                                     </div>
                                 </div>
@@ -93,19 +93,19 @@
     <div class="container">
         <div class="stats-container">
             <div class="stat-card">
-                <div class="stat-number">{{ ingredients|length }}</div>
+                <div class="stat-number">{{ stats.total_count }}</div>
                 <div class="stat-label">Total Ingredients</div>
             </div>
             <div class="stat-card">
-                <div class="stat-number">{{ ingredients|selectattr('vegetarian')|list|length }}</div>
+                <div class="stat-number">{{ stats.vegetarian_count }}</div>
                 <div class="stat-label">Vegetarian</div>
             </div>
             <div class="stat-card">
-                <div class="stat-number">{{ (ingredients|length) - (ingredients|selectattr('vegetarian')|list|length) }}</div>
+                <div class="stat-number">{{ stats.non_vegetarian_count }}</div>
                 <div class="stat-label">Non-Vegetarian</div>
             </div>
             <div class="stat-card">
-                <div class="stat-number">${{ "%.2f"|format(ingredients|sum(attribute='cost')) }}</div>
+                <div class="stat-number">${{ "%.2f"|format(stats.total_cost) }}</div>
                 <div class="stat-label">Total Value</div>
             </div>
         </div>
@@ -113,6 +113,7 @@
 </div>
 {% endblock %}
 
+<!-- Keep existing CSS and JavaScript -->
 {% block extra_css %}
 <style>
 .dashboard-container {
@@ -379,11 +380,14 @@
 
 {% block extra_js %}
 <script>
-// Simple search functionality
+// Simple search functionality - Fixed to remove template variable from JS
 document.addEventListener('DOMContentLoaded', function() {
     const searchInput = document.getElementById('ingredientSearch');
     const ingredientRows = document.querySelectorAll('.ingredient-row');
     const ingredientCount = document.getElementById('ingredientCount');
+    
+    // Get total count from the DOM instead of template variable
+    const totalCount = parseInt(ingredientCount.textContent);
 
     searchInput.addEventListener('input', function() {
         const searchTerm = this.value.toLowerCase();

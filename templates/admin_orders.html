@@ -21,10 +21,10 @@
 
     <!-- Search Bar -->
     <div class="container">
-        <div class="search-container">
+        <div class="search-container" data-total-orders="{{ stats.total_orders }}">
             <input type="text" id="orderSearch" class="search-input" placeholder="Search by order ID, customer name, or status...">
             <div class="search-stats">
-                <span id="orderCount">{{ orders|length }}</span> orders found
+                <span id="orderCount">{{ stats.total_orders }}</span> orders found
             </div>
         </div>
     </div>
@@ -51,8 +51,8 @@
                         </td>
                         <td class="customer-cell">
                             <div class="customer-info">
-                                <div class="customer-name">{{ order.customer.first_name }} {{ order.customer.last_name }}</div>
-                                <div class="customer-email">{{ order.customer.email }}</div>
+                                <div class="customer-name">{{ order.customer_name }}</div>
+                                <div class="customer-email">{{ order.customer_email }}</div>
                             </div>
                         </td>
                         <td class="date-cell">
@@ -61,10 +61,10 @@
                         </td>
                         <td class="pizzas-cell">
                             <div class="pizza-list">
-                                {% for order_pizza in order.order_pizzas %}
+                                {% for pizza_item in order.pizza_items %}
                                     <div class="pizza-item">
-                                        <span class="pizza-name">{{ order_pizza.pizza.name }}</span>
-                                        <span class="pizza-quantity">x{{ order_pizza.quantity }}</span>
+                                        <span class="pizza-name">{{ pizza_item.name }}</span>
+                                        <span class="pizza-quantity">x{{ pizza_item.quantity }}</span>
                                     </div>
                                 {% endfor %}
                             </div>
@@ -102,23 +102,19 @@
     <div class="container">
         <div class="stats-container">
             <div class="stat-card">
-                <div class="stat-number">{{ orders|length }}</div>
+                <div class="stat-number">{{ stats.total_orders }}</div>
                 <div class="stat-label">Total Orders</div>
             </div>
             <div class="stat-card">
-                <div class="stat-number">${{ "%.2f"|format(orders|sum(attribute='total_amount')) }}</div>
+                <div class="stat-number">${{ "%.2f"|format(stats.total_revenue) }}</div>
                 <div class="stat-label">Total Revenue</div>
             </div>
             <div class="stat-card">
-                {% if orders %}
-                    <div class="stat-number">${{ "%.2f"|format(orders|sum(attribute='total_amount') / orders|length) }}</div>
-                {% else %}
-                    <div class="stat-number">$0.00</div>
-                {% endif %}
+                <div class="stat-number">${{ "%.2f"|format(stats.average_order) }}</div>
                 <div class="stat-label">Average Order</div>
             </div>
             <div class="stat-card">
-                <div class="stat-number">{{ orders|selectattr('status', 'equalto', 'delivered')|list|length }}</div>
+                <div class="stat-number">{{ stats.delivered_orders }}</div>
                 <div class="stat-label">Delivered</div>
             </div>
         </div>
@@ -127,6 +123,7 @@
 {% endblock %}
 
 {% block extra_css %}
+<!-- Keep all your existing CSS exactly the same -->
 <style>
 .dashboard-container {
     min-height: 100vh;
@@ -427,11 +424,15 @@
 
 {% block extra_js %}
 <script>
-// Simple search functionality
+// Fixed JavaScript - NO template variables
 document.addEventListener('DOMContentLoaded', function() {
     const searchInput = document.getElementById('orderSearch');
     const orderRows = document.querySelectorAll('.order-row');
     const orderCount = document.getElementById('orderCount');
+    const searchContainer = document.querySelector('.search-container');
+    
+    // Get total count from data attribute instead of template variable
+    const totalCount = parseInt(searchContainer.dataset.totalOrders);
 
     searchInput.addEventListener('input', function() {
         const searchTerm = this.value.toLowerCase();
@@ -443,7 +444,8 @@ document.addEventListener('DOMContentLoaded', function() {
             const customerEmail = row.querySelector('.customer-email').textContent.toLowerCase();
             const status = row.querySelector('.status-badge').textContent.toLowerCase();
             
-            if (orderId.includes(searchTerm) || 
+            if (!searchTerm || 
+                orderId.includes(searchTerm) || 
                 customerName.includes(searchTerm) || 
                 customerEmail.includes(searchTerm) ||
                 status.includes(searchTerm)) {

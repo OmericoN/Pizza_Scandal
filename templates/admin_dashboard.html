@@ -10,7 +10,7 @@
             <div class="header-content">
                 <div>
                     <h1 class="text-h1">Admin Dashboard</h1>
-                    <p class="text-body-small">Welcome back, {{ session['admin_username'] }}</p>
+                    <p class="text-body-small">Welcome back, {{ admin_username }}</p>
                 </div>
                 <div class="header-actions">
                     <a href="{{ url_for('admin.logout') }}" class="btn btn-secondary">Logout</a>

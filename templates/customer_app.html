@@ -1,0 +1,824 @@
+{% extends "layout_v2.html" %}
+
+{% block title %}Pizza Scandal - Order Now{% endblock %}
+
+{% block content_wrapper %}
+<div class="app-container">
+    <!-- App Header -->
+    <div class="app-header">
+        <div class="container">
+            <div class="header-content">
+                <div class="welcome-section">
+                    <h1 class="app-title">Welcome back, {{ customer_first_name }}!</h1>
+                    <p class="app-subtitle">Choose your favorite pizzas and add them to your cart</p>
+                </div>
+                <div class="header-actions">
+                    <div class="cart-summary" id="cartSummary">
+                        <button class="cart-button" onclick="toggleCart()">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M3 3H5L5.4 5M7 13H17L21 5H5.4M7 13L5.4 5M7 13L4.7 15.3C4.3 15.7 4.6 16.5 5.1 16.5H17M17 13V16.5M9 19.5C9.8 19.5 10.5 20.2 10.5 21S9.8 22.5 9 22.5 7.5 21.8 7.5 21 8.2 19.5 9 19.5ZM20 19.5C20.8 19.5 21.5 20.2 21.5 21S20.8 22.5 20 22.5 18.5 21.8 18.5 21 19.2 19.5 20 19.5Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            <span class="cart-text">Cart</span>
+                            <span class="cart-count" id="cartCount">0</span>
+                        </button>
+                    </div>
+                    <a href="{{ url_for('customer.logout') }}" class="logout-btn">Logout</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="container">
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <div class="flash-message flash-{{ category }}">
+                            <span>{{ message }}</span>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <!-- Pizza Menu -->
+    <div class="container">
+        <div class="menu-section">
+            <h2 class="section-title">Our Delicious Pizzas</h2>
+            <div class="pizza-grid">
+                {% for pizza in pizzas %}
+                <div class="pizza-card" data-pizza-id="{{ pizza.pizza_id }}" data-vegetarian="{{ pizza.is_vegetarian|lower }}">
+                    <div class="pizza-image">
+                        <div class="pizza-placeholder">🍕</div>
+                        <!-- Vegetarian badge for fully vegetarian pizzas -->
+                        {% if pizza.is_vegetarian %}
+                            <div class="vegetarian-badge">
+                                <span class="veg-icon">🌱</span>
+                                <span class="veg-text">VEG</span>
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="pizza-info">
+                        <div class="pizza-header">
+                            <h3 class="pizza-name">{{ pizza.name }}</h3>
+                            <!-- Diet indicator -->
+                            {% if pizza.is_vegetarian %}
+                                <span class="vegetarian-indicator">🌱</span>
+                            {% else %}
+                                <span class="non-vegetarian-indicator">🥩</span>
+                            {% endif %}
+                        </div>
+                        
+                        <p class="pizza-description">{{ pizza.ingredients_text }}</p>
+                        
+                        <div class="pizza-details">
+                            <div class="pizza-price">
+                                <span class="price-amount">${{ "%.2f"|format(pizza.price) }}</span>
+                            </div>
+                            
+                            <div class="pizza-actions">
+                                <div class="quantity-controls">
+                                    <button class="quantity-btn minus" 
+                                            data-pizza-id="{{ pizza.pizza_id }}" 
+                                            data-change="-1"
+                                            onclick="updateQuantitySafe(this)" 
+                                            disabled>-</button>
+                                    <span class="quantity-display" id="quantity-{{ pizza.pizza_id }}">0</span>
+                                    <button class="quantity-btn plus" 
+                                            data-pizza-id="{{ pizza.pizza_id }}" 
+                                            data-change="1"
+                                            onclick="updateQuantitySafe(this)">+</button>
+                                </div>
+                                
+                                <button class="add-to-cart-btn" 
+                                        data-pizza-id="{{ pizza.pizza_id }}"
+                                        data-pizza-name="{{ pizza.name }}"
+                                        data-pizza-price="{{ pizza.price }}"
+                                        data-is-vegetarian="{{ pizza.is_vegetarian|lower }}"
+                                        onclick="addToCartSafe(this)"
+                                        disabled>
+                                    Add to Cart
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <div class="no-pizzas">
+                    <h3>No pizzas available</h3>
+                    <p>Check back later for our delicious pizza menu!</p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Cart Sidebar -->
+    <div class="cart-sidebar" id="cartSidebar">
+        <div class="cart-header">
+            <h3>Your Cart</h3>
+            <button class="close-cart" onclick="toggleCart()">×</button>
+        </div>
+        
+        <div class="cart-items" id="cartItems">
+            <div class="empty-cart">
+                <p>Your cart is empty</p>
+                <small>Add some delicious pizzas!</small>
+            </div>
+        </div>
+        
+        <div class="cart-footer">
+            <div class="cart-total">
+                <div class="total-line">
+                    <span>Total: </span>
+                    <span class="total-amount" id="cartTotal">$0.00</span>
+                </div>
+            </div>
+            
+            <div class="cart-actions">
+                <button class="clear-cart-btn" onclick="clearCart()">Clear Cart</button>
+                <button class="checkout-btn" onclick="proceedToCheckout()" id="checkoutBtn" disabled>
+                    Proceed to Checkout
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cart Overlay -->
+    <div class="cart-overlay" id="cartOverlay" onclick="toggleCart()"></div>
+</div>
+{% endblock %}
+
+<!-- Keep all your existing CSS and JavaScript as they are -->
+{% block extra_css %}
+<style>
+.app-container {
+    min-height: 100vh;
+    background: var(--background);
+    position: relative;
+}
+
+.app-header {
+    background: var(--card-background);
+    border-bottom: 1px solid var(--border);
+    padding: var(--space-lg) 0;
+    margin-bottom: var(--space-xl);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.header-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.welcome-section h1 {
+    color: var(--text-primary);
+    font-size: 28px;
+    font-weight: 700;
+    margin-bottom: var(--space-sm);
+}
+
+.app-subtitle {
+    color: var(--text-secondary);
+    font-size: 16px;
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+}
+
+.cart-button {
+    background: var(--brand);
+    color: white;
+    border: none;
+    border-radius: var(--radius-lg);
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.cart-button:hover {
+    background: var(--brand-dark);
+    transform: translateY(-2px);
+}
+
+.cart-count {
+    background: white;
+    color: var(--brand);
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.logout-btn {
+    background: var(--background);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 8px 16px;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+.logout-btn:hover {
+    background: var(--danger);
+    color: white;
+    border-color: var(--danger);
+}
+
+/* Menu Section */
+.menu-section {
+    margin-bottom: var(--space-xxl);
+}
+
+.section-title {
+    color: var(--text-primary);
+    font-size: 32px;
+    font-weight: 700;
+    margin-bottom: var(--space-xl);
+    text-align: center;
+}
+
+.pizza-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: var(--space-xl);
+}
+
+.pizza-card {
+    background: var(--card-background);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-subtle);
+    border: 1px solid var(--border);
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.pizza-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-large);
+    border-color: var(--brand);
+}
+
+.pizza-image {
+    height: 200px;
+    background: linear-gradient(135deg, var(--warm) 0%, #ffeaa7 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+}
+
+.pizza-placeholder {
+    font-size: 80px;
+    opacity: 0.8;
+}
+
+.vegetarian-badge {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: rgba(255, 255, 255, 0.8);
+    color: var(--brand);
+    border-radius: var(--radius-sm);
+    padding: 4px 8px;
+    font-size: 12px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.veg-icon {
+    font-size: 16px;
+}
+
+.pizza-info {
+    padding: var(--space-xl);
+}
+
+.pizza-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-md);
+}
+
+.pizza-name {
+    color: var(--text-primary);
+    font-size: 24px;
+    font-weight: 700;
+    margin: 0;
+}
+
+.vegetarian-indicator,
+.non-vegetarian-indicator {
+    font-size: 18px;
+}
+
+.vegetarian-indicator {
+    color: var(--success);
+}
+
+.non-vegetarian-indicator {
+    color: var(--danger);
+}
+
+.pizza-description {
+    color: var(--text-secondary);
+    font-size: 14px;
+    line-height: 1.5;
+    margin-bottom: var(--space-lg);
+}
+
+.pizza-details {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-md);
+}
+
+.pizza-price .price-amount {
+    color: var(--brand);
+    font-size: 28px;
+    font-weight: 700;
+}
+
+.pizza-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+}
+
+.quantity-controls {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    background: var(--background);
+    border-radius: var(--radius-md);
+    padding: 4px;
+}
+
+.quantity-btn {
+    background: var(--brand);
+    color: white;
+    border: none;
+    border-radius: var(--radius-sm);
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-weight: 700;
+    font-size: 16px;
+}
+
+.quantity-btn:hover {
+    background: var(--brand-dark);
+}
+
+.quantity-btn:disabled {
+    background: var(--text-muted);
+    cursor: not-allowed;
+}
+
+.quantity-display {
+    min-width: 40px;
+    text-align: center;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.add-to-cart-btn {
+    background: var(--brand);
+    color: white;
+    border: none;
+    border-radius: var(--radius-md);
+    padding: 10px 20px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    white-space: nowrap;
+}
+
+.add-to-cart-btn:hover {
+    background: var(--brand-dark);
+    transform: translateY(-2px);
+}
+
+.add-to-cart-btn:disabled {
+    background: var(--text-muted);
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* Cart Sidebar */
+.cart-sidebar {
+    position: fixed;
+    top: 0;
+    right: -400px;
+    width: 400px;
+    height: 100vh;
+    background: var(--card-background);
+    border-left: 1px solid var(--border);
+    box-shadow: var(--shadow-large);
+    z-index: 1000;
+    transition: right 0.3s ease;
+    display: flex;
+    flex-direction: column;
+}
+
+.cart-sidebar.open {
+    right: 0;
+}
+
+.cart-header {
+    padding: var(--space-lg);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.cart-header h3 {
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.close-cart {
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: var(--text-secondary);
+    padding: 4px;
+}
+
+.close-cart:hover {
+    color: var(--text-primary);
+}
+
+.cart-items {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--space-lg);
+}
+
+.empty-cart {
+    text-align: center;
+    color: var(--text-muted);
+    padding: var(--space-xxl) 0;
+}
+
+.cart-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-md) 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.cart-item:last-child {
+    border-bottom: none;
+}
+
+.item-info h4 {
+    color: var(--text-primary);
+    margin: 0 0 4px 0;
+    font-size: 16px;
+}
+
+.item-price {
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+.item-quantity {
+    color: var(--brand);
+    font-weight: 600;
+}
+
+.remove-item {
+    background: var(--danger);
+    color: white;
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: 4px 8px;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.cart-footer {
+    border-top: 1px solid var(--border);
+    padding: var(--space-lg);
+}
+
+.cart-total {
+    margin-bottom: var(--space-lg);
+}
+
+.total-line {
+    display: flex;
+    justify-content: space-between;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.cart-actions {
+    display: flex;
+    gap: var(--space-sm);
+}
+
+.clear-cart-btn {
+    flex: 1;
+    background: var(--background);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 12px;
+    cursor: pointer;
+}
+
+.checkout-btn {
+    flex: 2;
+    background: var(--brand);
+    color: white;
+    border: none;
+    border-radius: var(--radius-md);
+    padding: 12px;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.checkout-btn:disabled {
+    background: var(--text-muted);
+    cursor: not-allowed;
+}
+
+.cart-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 999;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s ease;
+}
+
+.cart-overlay.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* Flash Messages */
+.flash-messages {
+    margin-bottom: var(--space-lg);
+}
+
+.flash-message {
+    padding: 12px 16px;
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-sm);
+    font-weight: 500;
+}
+
+.flash-success {
+    background: rgba(39, 174, 96, 0.1);
+    color: var(--success);
+    border: 1px solid rgba(39, 174, 96, 0.2);
+}
+
+.flash-error {
+    background: rgba(231, 76, 60, 0.1);
+    color: var(--danger);
+    border: 1px solid rgba(231, 76, 60, 0.2);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .header-content {
+        flex-direction: column;
+        gap: var(--space-md);
+        text-align: center;
+    }
+    
+    .pizza-grid {
+        grid-template-columns: 1fr;
+        gap: var(--space-lg);
+    }
+    
+    .pizza-details {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .cart-sidebar {
+        width: 100vw;
+        right: -100vw;
+    }
+    
+    .pizza-actions {
+        justify-content: center;
+    }
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Cart functionality - Updated JavaScript
+let cart = [];
+let cartCount = 0;
+let cartTotal = 0;
+
+// Update pizza quantity with safer data handling
+function updateQuantitySafe(button) {
+    const pizzaId = button.getAttribute('data-pizza-id');
+    const change = parseInt(button.getAttribute('data-change'));
+    updateQuantity(pizzaId, change);
+}
+
+function updateQuantity(pizzaId, change) {
+    const quantityElement = document.getElementById(`quantity-${pizzaId}`);
+    const minusButton = document.querySelector(`[data-pizza-id="${pizzaId}"][data-change="-1"]`);
+    const addButton = document.querySelector(`[data-pizza-id="${pizzaId}"].add-to-cart-btn`);
+    
+    let currentQuantity = parseInt(quantityElement.textContent);
+    let newQuantity = currentQuantity + change;
+    
+    if (newQuantity < 0) newQuantity = 0;
+    if (newQuantity > 10) newQuantity = 10;
+    
+    quantityElement.textContent = newQuantity;
+    
+    // Update button states
+    minusButton.disabled = newQuantity === 0;
+    addButton.disabled = newQuantity === 0;
+    
+    // Update button text
+    if (newQuantity === 0) {
+        addButton.textContent = 'Add to Cart';
+    } else {
+        addButton.textContent = `Add ${newQuantity} to Cart`;
+    }
+}
+
+// Add to cart with clean data
+function addToCartSafe(button) {
+    const pizzaId = button.getAttribute('data-pizza-id');
+    const pizzaName = button.getAttribute('data-pizza-name');
+    const pizzaPrice = parseFloat(button.getAttribute('data-pizza-price'));
+    const isVegetarian = button.getAttribute('data-is-vegetarian') === 'true';
+    
+    addToCart(pizzaId, pizzaName, pizzaPrice, isVegetarian);
+}
+
+function addToCart(pizzaId, pizzaName, pizzaPrice, isVegetarian) {
+    const quantity = parseInt(document.getElementById(`quantity-${pizzaId}`).textContent);
+    
+    if (quantity === 0) {
+        alert('Please select a quantity first!');
+        return;
+    }
+    
+    const existingItemIndex = cart.findIndex(item => item.id === pizzaId);
+    
+    if (existingItemIndex > -1) {
+        cart[existingItemIndex].quantity += quantity;
+    } else {
+        cart.push({
+            id: pizzaId,
+            name: pizzaName,
+            price: pizzaPrice,
+            quantity: quantity,
+            isVegetarian: isVegetarian
+        });
+    }
+    
+    // Reset quantity
+    document.getElementById(`quantity-${pizzaId}`).textContent = '0';
+    document.querySelector(`[data-pizza-id="${pizzaId}"][data-change="-1"]`).disabled = true;
+    document.querySelector(`[data-pizza-id="${pizzaId}"].add-to-cart-btn`).disabled = true;
+    document.querySelector(`[data-pizza-id="${pizzaId}"].add-to-cart-btn`).textContent = 'Add to Cart';
+    
+    updateCartDisplay();
+    
+    // Success feedback
+    const addButton = document.querySelector(`[data-pizza-id="${pizzaId}"].add-to-cart-btn`);
+    const originalText = addButton.textContent;
+    addButton.textContent = 'Added!';
+    addButton.style.background = 'var(--success)';
+    
+    setTimeout(() => {
+        addButton.textContent = originalText;
+        addButton.style.background = 'var(--brand)';
+    }, 1000);
+}
+
+// Update cart display
+function updateCartDisplay() {
+    cartCount = cart.reduce((total, item) => total + item.quantity, 0);
+    cartTotal = cart.reduce((total, item) => total + (item.price * item.quantity), 0);
+    
+    document.getElementById('cartCount').textContent = cartCount;
+    document.getElementById('cartTotal').textContent = `$${cartTotal.toFixed(2)}`;
+    
+    const cartItemsContainer = document.getElementById('cartItems');
+    
+    if (cart.length === 0) {
+        cartItemsContainer.innerHTML = `
+            <div class="empty-cart">
+                <p>Your cart is empty</p>
+                <small>Add some delicious pizzas!</small>
+            </div>
+        `;
+        document.getElementById('checkoutBtn').disabled = true;
+    } else {
+        cartItemsContainer.innerHTML = cart.map(item => `
+            <div class="cart-item">
+                <div class="item-info">
+                    <h4>
+                        ${item.name}
+                        ${item.isVegetarian ? '<span class="cart-veg-badge">🌱</span>' : '<span class="cart-non-veg-badge">🥩</span>'}
+                    </h4>
+                    <div class="item-price">$${item.price.toFixed(2)} each</div>
+                </div>
+                <div class="item-actions">
+                    <span class="item-quantity">× ${item.quantity}</span>
+                    <button class="remove-item" onclick="removeFromCart('${item.id}')">Remove</button>
+                </div>
+            </div>
+        `).join('');
+        document.getElementById('checkoutBtn').disabled = false;
+    }
+}
+
+// Keep all your other existing JavaScript functions...
+function removeFromCart(pizzaId) {
+    cart = cart.filter(item => item.id !== pizzaId);
+    updateCartDisplay();
+}
+
+function clearCart() {
+    if (cart.length === 0) return;
+    if (confirm('Are you sure you want to clear your cart?')) {
+        cart = [];
+        updateCartDisplay();
+    }
+}
+
+function toggleCart() {
+    const sidebar = document.getElementById('cartSidebar');
+    const overlay = document.getElementById('cartOverlay');
+    sidebar.classList.toggle('open');
+    overlay.classList.toggle('active');
+}
+
+function proceedToCheckout() {
+    if (cart.length === 0) {
+        alert('Your cart is empty!');
+        return;
+    }
+    alert(`Proceeding to checkout with ${cartCount} items totaling $${cartTotal.toFixed(2)}`);
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    updateCartDisplay();
+    
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            const sidebar = document.getElementById('cartSidebar');
+            const overlay = document.getElementById('cartOverlay');
+            sidebar.classList.remove('open');
+            overlay.classList.remove('active');
+        }
+    });
+});
+</script>
+{% endblock %}

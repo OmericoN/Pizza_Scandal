@@ -1,6 +1,8 @@
 from flask import Blueprint, app, render_template, request, redirect, url_for, flash, session
 from models import db, Customer, Order, OrderItem, DeliveryPerson, DiscountCode, DiscountType, Admin, Pizza, pizza_ingredient, Ingredient
 from werkzeug.security import check_password_hash
+from sqlalchemy.orm import joinedload
+from sqlalchemy import func
 import os
 from datetime import datetime
 
@@ -24,6 +26,8 @@ def verify_password_with_pepper(password, password_hash):
 
 #-------------------------------
 #hwllo
+
+
 
 @customer_bp.route('/customer/register', methods=['GET', 'POST'])
 def register():
@@ -50,14 +54,12 @@ def register():
             flash('Password must be at least 6 characters long.', 'error')
             return render_template("customer_register.html")
         
-        # Check if email already exists
         existing_customer = Customer.query.filter_by(email=email).first()
         if existing_customer:
             flash('Email address already registered. Please use a different email.', 'error')
             return render_template("customer_register.html")
         
         try:
-            # Create new customer
             from werkzeug.security import generate_password_hash
             peppered_password = password + PEPPER
             password_hash = generate_password_hash(peppered_password)
@@ -97,7 +99,6 @@ def login():
             flash('Email and password are required.', 'error')
             return render_template("customer_login.html")
         
-        # Query the customer from the database
         customer = Customer.query.filter_by(email=email).first()
         
         if customer and verify_password_with_pepper(password, customer.password_hash):
@@ -106,7 +107,7 @@ def login():
             session['customer_email'] = customer.email
             session['customer_name'] = f"{customer.first_name} {customer.last_name}"
             flash('Login successful! Welcome back!', 'success')
-            return redirect(url_for('main.index'))  # Redirect to homepage or customer dashboard
+            return redirect(url_for('customer.app'))  # Redirect to homepage or customer dashboard
         else:
             flash('Invalid email or password.', 'error')
     
@@ -120,6 +121,58 @@ def logout():
     session.pop('customer_name', None)
     flash('Logged out successfully!', 'success')
     return redirect(url_for('main.index'))
+
+@customer_bp.route('/customer/app')
+def app():
+    if 'customer_id' not in session:
+        flash('You are required to login to access the app.', 'error')
+        return redirect(url_for('customer.login'))
+    
+    # Get pizzas with ingredients eagerly loaded
+    from sqlalchemy.orm import joinedload
+    pizzas = Pizza.query.options(joinedload(Pizza.ingredients)).order_by(Pizza.pizza_id.asc()).all()
+    
+    # Prepare clean pizza data for template
+    pizza_data = []
+    for pizza in pizzas:
+        # Check if pizza is vegetarian (all ingredients are vegetarian)
+        is_vegetarian = True
+        ingredient_names = []
+        
+        if pizza.ingredients:
+            for ingredient in pizza.ingredients:
+                ingredient_names.append(ingredient.name)
+                if not ingredient.vegetarian:
+                    is_vegetarian = False
+        
+        # Prepare ingredient display text
+        if ingredient_names:
+            if len(ingredient_names) <= 3:
+                ingredients_text = ', '.join(ingredient_names)
+            else:
+                ingredients_text = ', '.join(ingredient_names[:3]) + ' and more...'
+        else:
+            ingredients_text = 'Delicious pizza with premium ingredients'
+        
+        pizza_info = {
+            'pizza_id': pizza.pizza_id,
+            'name': pizza.name,
+            'price': pizza.price,
+            'is_vegetarian': is_vegetarian,
+            'ingredients_text': ingredients_text,
+            'ingredient_count': len(ingredient_names) if ingredient_names else 0
+        }
+        pizza_data.append(pizza_info)
+    
+    customer = Customer.query.get(session['customer_id'])
+    
+    # Get customer's first name for welcome message
+    customer_first_name = customer.first_name if customer else session.get('customer_name', '').split()[0]
+    
+    return render_template("customer_app.html", 
+                         pizzas=pizza_data, 
+                         customer=customer,
+                         customer_first_name=customer_first_name)
 
 @main_bp.route("/menu")
 def menu():
@@ -154,29 +207,31 @@ def admin_login():
     
     return render_template("admin_login.html")
 
+# Update admin dashboard route
 @admin_bp.route('/admin/dashboard')
 def dashboard():
     if 'admin_id' not in session:
         return redirect(url_for('admin.admin_login'))
     
-    # Get counts for dashboard overview
+    admin_username = session.get('admin_username', 'Admin')
+    
     stats = {
         'customers': Customer.query.count(),
         'pizzas': Pizza.query.count(),
         'ingredients': Ingredient.query.count(),
         'orders': Order.query.count(),
-        'delivery_people': DeliveryPerson.query.count(),
-        'discount_codes': DiscountCode.query.count(),
-        'discount_types': DiscountType.query.count()
+        'delivery_people': DeliveryPerson.query.count() if hasattr(globals(), 'DeliveryPerson') else 0,
+        'discount_codes': DiscountType.query.count() if hasattr(globals(), 'DiscountType') else 0
     }
     
-    # Get recent data for dashboard
     recent_customers = Customer.query.order_by(Customer.customer_id.desc()).limit(5).all()
-    recent_orders = Order.query.order_by(Order.order_id.desc()).limit(5).all()
     
-    return render_template("admin_dashboard.html", stats=stats, recent_customers=recent_customers, recent_orders=recent_orders)
+    return render_template("admin_dashboard.html", 
+                         stats=stats, 
+                         recent_customers=recent_customers,
+                         admin_username=admin_username)
 
-################ DONE ############
+################ LOGOUT BUTTON ############
 @admin_bp.route('/admin/logout')
 def logout():
     session.clear()
@@ -193,37 +248,132 @@ def customers():
     
     customers = Customer.query.order_by(Customer.customer_id.asc()).all()
     
-    # Calculate basic stats
     stats = {
         'total_customers': len(customers),
         'customers_with_orders': len([c for c in customers if hasattr(c, 'orders') and c.orders]),
+        'total_count': len(customers)  # For search functionality
     }
     
     return render_template("admin_customers.html", customers=customers, stats=stats)
+
 # --------------------PIZZA ADMIN-----------------------------------
-# Pizza Management
 @admin_bp.route('/admin/pizzas')
 def pizzas():
     if 'admin_id' not in session:
         return redirect(url_for('admin.admin_login'))
+
+    pizzas = Pizza.query.options(joinedload(Pizza.ingredients)).order_by(Pizza.pizza_id.asc()).all()
     
-    # Order pizzas by ID (ascending)
-    pizzas = Pizza.query.order_by(Pizza.pizza_id.asc()).all()
-    return render_template("admin_pizzas.html", pizzas=pizzas)
+    pizza_ingredients_query = db.session.query(
+        pizza_ingredient.c.pizza_id,
+        Ingredient.ingredient_id,
+        Ingredient.name,
+        Ingredient.vegetarian
+    ).join(
+        Ingredient, pizza_ingredient.c.ingredient_id == Ingredient.ingredient_id
+    ).order_by(pizza_ingredient.c.pizza_id, Ingredient.name).all()
+    
+    # Group ingredients by pizza_id for easy lookup
+    ingredients_by_pizza = {}
+    for pizza_id, ingredient_id, ingredient_name, is_vegetarian in pizza_ingredients_query:
+        if pizza_id not in ingredients_by_pizza:
+            ingredients_by_pizza[pizza_id] = []
+        ingredients_by_pizza[pizza_id].append({
+            'id': ingredient_id,
+            'name': ingredient_name,
+            'vegetarian': is_vegetarian
+        })
+    
+    # Prepare clean pizza data using the grouped ingredients
+    pizza_data = []
+    for pizza in pizzas:
+        # Get ingredients from our pre-fetched data
+        pizza_ingredients = ingredients_by_pizza.get(pizza.pizza_id, [])
+        
+        # Check if pizza is vegetarian (all ingredients are vegetarian)
+        is_vegetarian = True
+        ingredient_names = []
+        
+        for ingredient_info in pizza_ingredients:
+            ingredient_names.append(ingredient_info['name'])
+            if not ingredient_info['vegetarian']:
+                is_vegetarian = False
+        
+        total_ingredient_cost = sum(float(ingredient.cost) for ingredient in pizza.ingredients) if pizza.ingredients else 0
+        
+        pizza_info = {
+            'pizza_id': pizza.pizza_id,
+            'name': pizza.name,
+            'price': float(pizza.price),
+            'description': pizza.description,
+            'is_vegetarian': is_vegetarian,
+            'ingredient_names': ingredient_names,
+            'ingredient_count': len(ingredient_names),
+            'total_ingredient_cost': total_ingredient_cost,
+            'profit_margin': float(pizza.price) - total_ingredient_cost if total_ingredient_cost > 0 else 0
+        }
+        pizza_data.append(pizza_info)
+    
+    total_pizzas = len(pizza_data)
+    vegetarian_pizzas = len([p for p in pizza_data if p['is_vegetarian']])
+    non_vegetarian_pizzas = total_pizzas - vegetarian_pizzas
+    avg_price = sum(p['price'] for p in pizza_data) / total_pizzas if total_pizzas > 0 else 0
+    
+    stats = {
+        'total_pizzas': len(pizza_data),
+        'vegetarian_pizzas': vegetarian_pizzas,
+        'non_vegetarian_pizzas': total_pizzas - vegetarian_pizzas,
+        'average_price': avg_price
+    }
+    
+    return render_template("admin_pizzas.html", pizzas=pizza_data, stats=stats)
 
 # ---------------------------------------------------------------------#
 
 #--------------------INGREDIENTS ADMIN ----------------------------------
-# Your existing ingredients route is already correct:
 @admin_bp.route('/admin/ingredients')
 def ingredients():
     if 'admin_id' not in session:
         return redirect(url_for('admin.admin_login'))
     
-    # Order ingredients by ID for consistency
-    ingredients = Ingredient.query.order_by(Ingredient.ingredient_id.asc()).all()
-    return render_template("admin_ingredients.html", ingredients=ingredients)
-
+    ingredients = Ingredient.query.options(joinedload(Ingredient.pizzas)).order_by(Ingredient.ingredient_id.asc()).all()
+    
+    ingredient_data = []
+    total_vegetarian = 0
+    total_cost = 0
+    
+    for ingredient in ingredients:
+        pizza_names = [pizza.name for pizza in ingredient.pizzas] if ingredient.pizzas else []
+        pizza_count = len(pizza_names)
+        
+        if ingredient.vegetarian:
+            total_vegetarian += 1
+            
+        total_cost += ingredient.cost
+        
+        ingredient_info = {
+            'ingredient_id': ingredient.ingredient_id,
+            'name': ingredient.name,
+            'cost': ingredient.cost,
+            'vegetarian': ingredient.vegetarian,
+            'pizza_names': pizza_names[:2],  # Only first 2 for display
+            'pizza_count': pizza_count,
+            'has_more_pizzas': pizza_count > 2,
+            'additional_pizzas': pizza_count - 2 if pizza_count > 2 else 0
+        }
+        ingredient_data.append(ingredient_info)
+    
+    total_ingredients = len(ingredient_data)
+    total_non_vegetarian = total_ingredients - total_vegetarian
+    
+    stats = {
+        'total_count': total_ingredients,
+        'vegetarian_count': total_vegetarian,
+        'non_vegetarian_count': total_non_vegetarian,
+        'total_cost': total_cost
+    }
+    
+    return render_template("admin_ingredients.html", ingredients=ingredient_data, stats=stats)
 
 # ---------------------DELIVERY PERSON ADMIN -------------------------------
 @admin_bp.route('/admin/delivery-people')
@@ -253,14 +403,61 @@ def discount_codes():
 def orders():
     if 'admin_id' not in session:
         return redirect(url_for('admin.admin_login'))
-    orders = Order.query.order_by(Order.order_id.desc()).all()
-    return render_template("admin_orders.html", orders=orders)
+    
+    orders = Order.query.order_by(Order.time_stamp.desc()).all()
+    
+    order_data = []
+    total_revenue = 0
+    delivered_count = 0
+    
+    for order in orders:
+        customer = Customer.query.get(order.customer_id) if order.customer_id else None
+        
+        if customer:
+            customer_name = f"{customer.first_name} {customer.last_name}"
+            customer_email = customer.email
+        else:
+            customer_name = "Unknown Customer"
+            customer_email = "No email"
+        
+        pizza_items = []
+        if order.order_items:
+            for order_item in order.order_items:
+                pizza = Pizza.query.get(order_item.pizza_id) if order_item.pizza_id else None
+                if pizza:
+                    pizza_items.append({
+                        'name': pizza.name,
+                        'quantity': order_item.quantity
+                    })
+        
+        if not pizza_items:
+            pizza_items = [{'name': 'Pizza details not available', 'quantity': 1}]
+        
+        order_amount = float(order.total_price) if order.total_price else 0
+        total_revenue += order_amount
+        
+        order_status = 'pending' 
+        
+        order_info = {
+            'order_id': order.order_id,
+            'order_date': order.time_stamp if order.time_stamp else datetime.now(),  # Using time_stamp
+            'total_amount': order_amount,  # Using total_price from model
+            'status': order_status,  # Default status
+            'customer_name': customer_name,
+            'customer_email': customer_email,
+            'pizza_items': pizza_items
+        }
+        order_data.append(order_info)
+    
+    total_orders = len(order_data)
+    average_order = total_revenue / total_orders if total_orders > 0 else 0
+    
+    stats = {
+        'total_orders': total_orders,
+        'total_revenue': total_revenue,
+        'average_order': average_order,
+        'delivered_orders': 0  # Since no status field exists, set to 0
+    }
+    
+    return render_template("admin_orders.html", orders=order_data, stats=stats)
 
-# add these simple routes so the index page can redirect to them without errors
-@main_bp.route("/customer/login", methods=["GET"])
-def customer_login():
-    return render_template("customer_login.html")
-
-@main_bp.route("/customer/register", methods=["GET"])
-def customer_register():
-    return render_template("customer_register.html")
