@@ -2,7 +2,7 @@ from flask import Flask, request
 from dotenv import load_dotenv
 from flask_migrate import Migrate
 import os
-from models import db
+from models import db, seed_data
 from controller import admin_bp, main_bp, customer_bp
 
 
@@ -22,6 +22,7 @@ def create_app():
     
     with app.app_context():
         db.create_all()
+        seed_data()
 
     @app.route("/")
     def index():
