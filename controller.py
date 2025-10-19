@@ -1,5 +1,5 @@
 from flask import Blueprint, app, render_template, request, redirect, url_for, flash, session
-from models import db, Customer, Order, OrderItem, DeliveryPerson, DiscountCode, DiscountType, Admin, Pizza, pizza_ingredient, Ingredient
+from models import db, Customer, Order, OrderItem, DeliveryPerson, DiscountCode, DiscountType, Admin, Pizza, pizza_ingredient, Ingredient, DeliveryPersonPostalRange
 from werkzeug.security import check_password_hash
 from sqlalchemy.orm import joinedload
 from sqlalchemy import func
@@ -24,6 +24,25 @@ def verify_password_with_pepper(password, password_hash):
     """Verify password with pepper"""
     peppered_password = password + PEPPER
     return check_password_hash(password_hash, peppered_password)
+
+def _choose_delivery_person_for_zip(postal_code):
+    """Pick a delivery person whose range covers the postal_code; fallback to random."""
+    try:
+        pc = int(str(postal_code).strip())
+    except (TypeError, ValueError):
+        pc = None
+
+    if pc is not None:
+        dp = (DeliveryPerson.query
+              .join(DeliveryPersonPostalRange,
+                    DeliveryPersonPostalRange.delivery_person_id == DeliveryPerson.delivery_person_id)
+              .filter(DeliveryPersonPostalRange.start_zip <= pc,
+                      DeliveryPersonPostalRange.end_zip >= pc)
+              .order_by(func.random())
+              .first())
+        if dp:
+            return dp
+    return DeliveryPerson.query.order_by(func.random()).first()
 
 #-------------------------------
 #hwllo
@@ -217,10 +236,14 @@ def checkout():
         delivery_address = request.form.get('delivery_address', customer.address) # fetches Customer details
         notes = request.form.get('notes', '') 
         
+        # Choose delivery person by customer's postal code range (fallback to random)
+        dp = _choose_delivery_person_for_zip(customer.postal_code if customer else None)
+        
         try:
             # Create the order
             new_order = Order(
                 customer_id=session['customer_id'],
+                delivery_person_id=(dp.delivery_person_id if dp else None),
                 total_price=total_with_vat,
                 time_stamp=datetime.now()
             )
