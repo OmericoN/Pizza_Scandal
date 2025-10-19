@@ -66,11 +66,11 @@
                 <!-- Add VAT information -->
                 <div class="info-row">
                     <span class="info-label">Subtotal (excl. VAT):</span>
-                    <span class="info-value">${{ "%.2f"|format(order.total_price / 1.09) }}</span>
+                    <span class="info-value">${{ "%.2f"|format(subtotal_without_vat) }}</span>
                 </div>
                 <div class="info-row">
                     <span class="info-label">VAT (9%):</span>
-                    <span class="info-value">${{ "%.2f"|format(order.total_price - (order.total_price / 1.09)) }}</span>
+                    <span class="info-value">${{ "%.2f"|format(vat_amount) }}</span>
                 </div>
                 <div class="info-row">
                     <span class="info-label">Total (incl. VAT):</span>
