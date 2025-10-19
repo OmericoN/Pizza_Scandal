@@ -13,14 +13,18 @@
                     <p class="app-subtitle">Choose your favorite pizzas and add them to your cart</p>
                 </div>
                 <div class="header-actions">
-                    <div class="cart-summary" id="cartSummary">
-                        <button class="cart-button" onclick="toggleCart()">
+                    <div class="cart-summary">
+                        <a href="{{ url_for('customer.view_cart') }}" class="cart-button">
                             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                                 <path d="M3 3H5L5.4 5M7 13H17L21 5H5.4M7 13L5.4 5M7 13L4.7 15.3C4.3 15.7 4.6 16.5 5.1 16.5H17M17 13V16.5M9 19.5C9.8 19.5 10.5 20.2 10.5 21S9.8 22.5 9 22.5 7.5 21.8 7.5 21 8.2 19.5 9 19.5ZM20 19.5C20.8 19.5 21.5 20.2 21.5 21S20.8 22.5 20 22.5 18.5 21.8 18.5 21 19.2 19.5 20 19.5Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                             </svg>
-                            <span class="cart-text">Cart</span>
-                            <span class="cart-count" id="cartCount">0</span>
-                        </button>
+                            <span class="cart-text">View Cart</span>
+                            {% if session.get('cart') %}
+                                <span class="cart-count">{{ session.get('cart')|length }}</span>
+                            {% else %}
+                                <span class="cart-count">0</span>
+                            {% endif %}
+                        </a>
                     </div>
                     <a href="{{ url_for('customer.logout') }}" class="logout-btn">Logout</a>
                 </div>
@@ -80,28 +84,21 @@
                             </div>
                             
                             <div class="pizza-actions">
-                                <div class="quantity-controls">
-                                    <button class="quantity-btn minus" 
-                                            data-pizza-id="{{ pizza.pizza_id }}" 
-                                            data-change="-1"
-                                            onclick="updateQuantitySafe(this)" 
-                                            disabled>-</button>
-                                    <span class="quantity-display" id="quantity-{{ pizza.pizza_id }}">0</span>
-                                    <button class="quantity-btn plus" 
-                                            data-pizza-id="{{ pizza.pizza_id }}" 
-                                            data-change="1"
-                                            onclick="updateQuantitySafe(this)">+</button>
-                                </div>
-                                
-                                <button class="add-to-cart-btn" 
-                                        data-pizza-id="{{ pizza.pizza_id }}"
-                                        data-pizza-name="{{ pizza.name }}"
-                                        data-pizza-price="{{ pizza.price }}"
-                                        data-is-vegetarian="{{ pizza.is_vegetarian|lower }}"
-                                        onclick="addToCartSafe(this)"
-                                        disabled>
-                                    Add to Cart
-                                </button>
+                                <form action="{{ url_for('customer.add_to_cart') }}" method="POST">
+                                    <input type="hidden" name="pizza_id" value="{{ pizza.pizza_id }}">
+                                    <div class="quantity-controls">
+                                        <button type="button" class="quantity-btn minus" 
+                                                onclick="decrementQuantity('quantity-{{ pizza.pizza_id }}')"
+                                                id="minus-{{ pizza.pizza_id }}">-</button>
+                                        <input type="number" name="quantity" id="quantity-{{ pizza.pizza_id }}" 
+                                               value="1" min="1" max="10" class="quantity-display">
+                                        <button type="button" class="quantity-btn plus" 
+                                                onclick="incrementQuantity('quantity-{{ pizza.pizza_id }}')">+</button>
+                                    </div>
+                                    <button type="submit" class="add-to-cart-btn">
+                                        Add to Cart
+                                    </button>
+                                </form>
                             </div>
                         </div>
                     </div>
@@ -818,6 +815,46 @@ document.addEventListener('DOMContentLoaded', function() {
             sidebar.classList.remove('open');
             overlay.classList.remove('active');
         }
+    });
+});
+
+function incrementQuantity(inputId) {
+    const input = document.getElementById(inputId);
+    let value = parseInt(input.value) || 0;
+    if (value < 10) {
+        value++;
+        input.value = value;
+    }
+    updateMinusButton(inputId);
+}
+
+function decrementQuantity(inputId) {
+    const input = document.getElementById(inputId);
+    let value = parseInt(input.value) || 0;
+    if (value > 1) {
+        value--;
+        input.value = value;
+    }
+    updateMinusButton(inputId);
+}
+
+function updateMinusButton(inputId) {
+    const input = document.getElementById(inputId);
+    const pizzaId = inputId.split('-')[1];
+    const minusButton = document.getElementById(`minus-${pizzaId}`);
+    
+    if (parseInt(input.value) <= 1) {
+        minusButton.disabled = true;
+    } else {
+        minusButton.disabled = false;
+    }
+}
+
+// Initialize minus buttons
+document.addEventListener('DOMContentLoaded', function() {
+    const quantityInputs = document.querySelectorAll('input[id^="quantity-"]');
+    quantityInputs.forEach(input => {
+        updateMinusButton(input.id);
     });
 });
 </script>

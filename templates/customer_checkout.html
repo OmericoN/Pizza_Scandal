@@ -1,0 +1,229 @@
+{% extends "layout_v2.html" %}
+
+{% block title %}Checkout - Le Pizzeria{% endblock %}
+
+{% block content_wrapper %}
+<div class="app-container">
+    <!-- App Header -->
+    <div class="app-header">
+        <div class="container">
+            <div class="header-content">
+                <div class="welcome-section">
+                    <h1 class="app-title">Checkout</h1>
+                </div>
+                <div class="header-actions">
+                    <a href="{{ url_for('customer.view_cart') }}" class="btn btn-secondary">Back to Cart</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="container">
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <div class="flash-message flash-{{ category }}">
+                            <span>{{ message }}</span>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <div class="container">
+        <div class="checkout-layout">
+            <div class="order-summary">
+                <div class="card">
+                    <h2>Order Summary</h2>
+                    
+                    <div class="order-items">
+                        {% for item in cart_items %}
+                            <div class="order-item">
+                                <div class="item-details">
+                                    <h4>{{ item.name }}</h4>
+                                    <span class="quantity">x{{ item.quantity }}</span>
+                                </div>
+                                <span class="item-price">${{ "%.2f"|format(item.subtotal) }}</span>
+                            </div>
+                        {% endfor %}
+                    </div>
+                    
+                    <div class="order-total">
+                        <div class="order-total-row">
+                            <span>Subtotal (excl. VAT):</span>
+                            <span>${{ "%.2f"|format(subtotal) }}</span>
+                        </div>
+                        <div class="order-total-row">
+                            <span>VAT ({{ vat_rate }}%):</span>
+                            <span>${{ "%.2f"|format(vat_amount) }}</span>
+                        </div>
+                        <div class="order-total-row">
+                            <span>Delivery Fee:</span>
+                            <span>$2.99</span>
+                        </div>
+                        <div class="order-total-row final">
+                            <span>Total (incl. VAT):</span>
+                            <span>${{ "%.2f"|format(total + 2.99) }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="checkout-form">
+                <div class="card">
+                    <h2>Confirm Order</h2>
+                    
+                    <form action="{{ url_for('customer.checkout') }}" method="POST">
+                        <div class="form-group">
+                            <label class="form-label">Deliver to:</label>
+                            <div class="customer-info">
+                                <p><strong>{{ customer.first_name }} {{ customer.last_name }}</strong></p>
+                                <p>{{ customer.telephone }}</p>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="delivery_address" class="form-label">Delivery Address:</label>
+                            <textarea name="delivery_address" id="delivery_address" class="form-input" rows="3" required>{{ customer.address }}</textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="notes" class="form-label">Order Notes (optional):</label>
+                            <textarea name="notes" id="notes" class="form-input" rows="2" placeholder="Special instructions, delivery notes, etc."></textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="discount_code" class="form-label">Discount Code (optional):</label>
+                            <input type="text" name="discount_code" id="discount_code" class="form-input" placeholder="Enter discount code">
+                        </div>
+                        
+                        <div class="form-group payment-method">
+                            <label class="form-label">Payment Method:</label>
+                            <div class="payment-options">
+                                <div class="payment-option">
+                                    <input type="radio" name="payment_method" id="cash" value="cash" checked>
+                                    <label for="cash">Cash on Delivery</label>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary btn-full">Place Order</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .checkout-layout {
+        display: grid;
+        grid-template-columns: 1fr 1.5fr;
+        gap: 24px;
+        margin-bottom: 40px;
+    }
+    
+    .card {
+        background-color: var(--card-background);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-subtle);
+        padding: 24px;
+        border: 1px solid var(--border);
+    }
+    
+    .card h2 {
+        font-size: 20px;
+        margin-bottom: 20px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid var(--border);
+    }
+    
+    .order-items {
+        margin-bottom: 20px;
+    }
+    
+    .order-item {
+        display: flex;
+        justify-content: space-between;
+        padding: 12px 0;
+        border-bottom: 1px solid var(--border);
+    }
+    
+    .order-item:last-child {
+        border-bottom: none;
+    }
+    
+    .item-details h4 {
+        margin: 0;
+        font-size: 16px;
+    }
+    
+    .quantity {
+        color: var(--text-secondary);
+        font-size: 14px;
+    }
+    
+    .item-price {
+        font-weight: 600;
+    }
+    
+    .order-total {
+        padding-top: 12px;
+        border-top: 1px solid var(--border);
+    }
+    
+    .order-total-row {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 8px;
+        font-size: 14px;
+        color: var(--text-secondary);
+    }
+    
+    .order-total-row.final {
+        font-weight: 700;
+        color: var(--text-primary);
+        font-size: 18px;
+        margin-top: 12px;
+        padding-top: 12px;
+        border-top: 1px solid var(--border);
+    }
+    
+    .customer-info {
+        background-color: var(--background);
+        padding: 12px;
+        border-radius: var(--radius-md);
+        margin-bottom: 16px;
+    }
+    
+    .customer-info p {
+        margin: 0 0 4px 0;
+    }
+    
+    .payment-options {
+        display: flex;
+        gap: 16px;
+    }
+    
+    .payment-option {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .form-actions {
+        margin-top: 24px;
+    }
+    
+    @media (max-width: 768px) {
+        .checkout-layout {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+{% endblock %}

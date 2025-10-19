@@ -5,6 +5,7 @@ from sqlalchemy.orm import joinedload
 from sqlalchemy import func
 import os
 from datetime import datetime
+from sqlalchemy.orm import joinedload
 
 
 main_bp = Blueprint('main', __name__)
@@ -115,7 +116,6 @@ def login():
 
 @customer_bp.route('/customer/logout')
 def logout():
-    # Clear customer session
     session.pop('customer_id', None)
     session.pop('customer_email', None)
     session.pop('customer_name', None)
@@ -173,6 +173,135 @@ def app():
                          pizzas=pizza_data, 
                          customer=customer,
                          customer_first_name=customer_first_name)
+
+@customer_bp.route("/customer/app/checkout", methods=['GET', 'POST'])
+def checkout():
+    if 'customer_id' not in session:
+        return redirect(url_for('customer.login'))
+    
+    cart = session.get('cart', {})
+    if not cart:
+        flash('Your cart is empty!', 'error')
+        return redirect(url_for('customer.app'))
+    
+    # Get customer info
+    customer = Customer.query.get(session['customer_id'])
+    
+    # Calculate cart total and VAT
+    cart_items = []
+    total_with_vat = 0
+    
+    for pizza_id, item in cart.items():
+        subtotal = item['price'] * item['quantity']
+        total_with_vat += subtotal
+        
+        # Calculate item price components
+        item_subtotal_without_vat = subtotal / 1.09  # Remove VAT
+        item_vat = subtotal - item_subtotal_without_vat
+        
+        cart_items.append({
+            'pizza_id': pizza_id,
+            'name': item['name'],
+            'price': item['price'],
+            'quantity': item['quantity'],
+            'subtotal': subtotal,
+            'is_vegetarian': item['is_vegetarian']
+        })
+    
+    # Calculate VAT (9% of pre-tax total)
+    subtotal_without_vat = total_with_vat / 1.09
+    vat_amount = total_with_vat - subtotal_without_vat
+    
+    # Process order confirmation
+    if request.method == 'POST':
+        delivery_address = request.form.get('delivery_address', customer.address) # fetches Customer details
+        notes = request.form.get('notes', '') 
+        
+        try:
+            # Create the order
+            new_order = Order(
+                customer_id=session['customer_id'],
+                total_price=total_with_vat,
+                time_stamp=datetime.now()
+            )
+            db.session.add(new_order)
+            db.session.flush()  # Get order ID
+            
+            # Create order items from cart - WITH PRICE
+            for pizza_id, item in cart.items():
+                order_item = OrderItem(
+                    order_id=new_order.order_id,
+                    pizza_id=int(pizza_id),
+                    quantity=item['quantity'],
+                    unit_price=item['price']  # Already includes VAT
+                )
+                db.session.add(order_item)
+            
+            discount_code = request.form.get('discount_code') #Discount field
+            if discount_code:
+                code = DiscountCode.query.filter_by(code=discount_code).first()
+                if code:
+                    discount_type = DiscountType.query.get(code.discount_type_id)
+                    if discount_type:
+                        discount_amount = total_with_vat * (discount_type.percent / 100)
+                        new_order.total_price = total_with_vat - discount_amount
+                        flash(f"Applied {discount_type.name} discount: ${discount_amount:.2f}", "success")
+                else:
+                    flash("Invalid discount code", "error")
+            
+            db.session.commit() # transactions is only completed and is saved in database iff checkout is successful
+            
+            # Clear cart
+            session.pop('cart', None)
+            
+            flash('Order placed successfully!', 'success')
+            return redirect(url_for('customer.order_confirmation', order_id=new_order.order_id))
+            
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error processing order: {str(e)}', 'error')
+            return redirect(url_for('customer.checkout'))
+    
+    # GET request - show checkout form
+    return render_template('customer_checkout.html',
+                         customer=customer,
+                         cart_items=cart_items,
+                         total=total_with_vat,
+                         subtotal=subtotal_without_vat,
+                         vat_amount=vat_amount,
+                         vat_rate=9)
+
+@customer_bp.route('/customer/order-confirmation/<int:order_id>')
+def order_confirmation(order_id):
+    if 'customer_id' not in session:
+        return redirect(url_for('customer.login'))
+    
+    # Get order details
+    order = Order.query.get_or_404(order_id)
+    
+    # Security check - verify order belongs to logged-in customer
+    if order.customer_id != session['customer_id']:
+        flash("Access denied: Order not found", "error")
+        return redirect(url_for('customer.app'))
+    
+    # Get order items with pizza details
+    order_items = []
+    for item in order.order_items:
+        pizza = Pizza.query.get(item.pizza_id)
+        if pizza:
+            order_items.append({
+                'name': pizza.name,
+                'quantity': item.quantity,
+                'price': pizza.price,
+                'subtotal': pizza.price * item.quantity
+            })
+    
+    customer = Customer.query.get(session['customer_id'])
+    
+    return render_template('customer_order_confirmation.html',
+                         order=order,
+                         order_items=order_items,
+                         customer=customer)
 
 @main_bp.route("/menu")
 def menu():
@@ -460,4 +589,97 @@ def orders():
     }
     
     return render_template("admin_orders.html", orders=order_data, stats=stats)
+
+# Add these after your existing customer routes
+
+@customer_bp.route('/customer/cart/add', methods=['POST'])
+def add_to_cart():
+    if 'customer_id' not in session:
+        return redirect(url_for('customer.login'))
+    
+    pizza_id = request.form.get('pizza_id')
+    quantity = int(request.form.get('quantity', 1))
+    
+    if quantity <= 0:
+        flash('Please select a valid quantity', 'error')
+        return redirect(url_for('customer.app'))
+    
+    # Get pizza details from database
+    pizza = Pizza.query.get_or_404(pizza_id)
+    
+    # Check if pizza is vegetarian
+    is_vegetarian = True
+    for ingredient in pizza.ingredients:
+        if not ingredient.vegetarian:
+            is_vegetarian = False
+            break
+    
+    # Initialize cart in session if not exists
+    if 'cart' not in session:
+        session['cart'] = {}
+    
+    # Add to cart
+    cart = session['cart']
+    if pizza_id in cart:
+        cart[pizza_id]['quantity'] += quantity
+    else:
+        cart[pizza_id] = {
+            'name': pizza.name,
+            'price': float(pizza.price),
+            'quantity': quantity,
+            'is_vegetarian': is_vegetarian
+        }
+    
+    session['cart'] = cart
+    flash(f'Added {quantity} {pizza.name} to cart!', 'success')
+    return redirect(url_for('customer.app'))
+
+@customer_bp.route('/customer/cart')
+def view_cart():
+    if 'customer_id' not in session:
+        return redirect(url_for('customer.login'))
+    
+    cart = session.get('cart', {})
+    cart_items = []
+    total = 0
+    
+    for pizza_id, item in cart.items():
+        subtotal = item['price'] * item['quantity']
+        total += subtotal
+        cart_items.append({
+            'pizza_id': pizza_id,
+            'name': item['name'],
+            'price': item['price'],
+            'quantity': item['quantity'],
+            'subtotal': subtotal,
+            'is_vegetarian': item['is_vegetarian']
+        })
+    
+    return render_template('customer_cart.html', 
+                         cart_items=cart_items, 
+                         total=total)
+
+@customer_bp.route('/customer/cart/remove', methods=['POST'])
+def remove_from_cart():
+    if 'customer_id' not in session:
+        return redirect(url_for('customer.login'))
+    
+    pizza_id = request.form.get('pizza_id')
+    cart = session.get('cart', {})
+    
+    if pizza_id in cart:
+        del cart[pizza_id]
+        session['cart'] = cart
+        flash('Item removed from cart', 'success')
+    
+    return redirect(url_for('customer.view_cart'))
+
+@customer_bp.route('/customer/cart/clear', methods=['POST'])
+def clear_cart():
+    if 'customer_id' not in session:
+        return redirect(url_for('customer.login'))
+    
+    session.pop('cart', None)
+    flash('Cart cleared', 'success')
+    return redirect(url_for('customer.app'))
 

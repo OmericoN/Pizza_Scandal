@@ -1,0 +1,248 @@
+{% extends "layout_v2.html" %}
+
+{% block title %}Order Confirmation - Le Pizzeria{% endblock %}
+
+{% block content_wrapper %}
+<div class="app-container">
+    <!-- App Header -->
+    <div class="app-header">
+        <div class="container">
+            <div class="header-content">
+                <div class="welcome-section">
+                    <h1 class="app-title">Order Confirmation</h1>
+                </div>
+                <div class="header-actions">
+                    <a href="{{ url_for('customer.app') }}" class="btn btn-secondary">Back to Menu</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="container">
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <div class="flash-message flash-{{ category }}">
+                            <span>{{ message }}</span>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <div class="container">
+        <div class="confirmation-card">
+            <div class="confirmation-icon">
+                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="12" cy="12" r="10" stroke="#27AE60" stroke-width="2"/>
+                    <path d="M8 12L11 15L16 9" stroke="#27AE60" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </div>
+            
+            <h2>Thank You for Your Order!</h2>
+            <p class="confirmation-message">Your order has been received and is being prepared.</p>
+            
+            <div class="order-info">
+                <div class="info-row">
+                    <span class="info-label">Order #:</span>
+                    <span class="info-value">{{ order.order_id }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Date:</span>
+                    <span class="info-value">{{ order.time_stamp.strftime('%B %d, %Y') }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Time:</span>
+                    <span class="info-value">{{ order.time_stamp.strftime('%I:%M %p') }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Total:</span>
+                    <span class="info-value">${{ "%.2f"|format(order.total_price) }}</span>
+                </div>
+                
+                <!-- Add VAT information -->
+                <div class="info-row">
+                    <span class="info-label">Subtotal (excl. VAT):</span>
+                    <span class="info-value">${{ "%.2f"|format(order.total_price / 1.09) }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">VAT (9%):</span>
+                    <span class="info-value">${{ "%.2f"|format(order.total_price - (order.total_price / 1.09)) }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Total (incl. VAT):</span>
+                    <span class="info-value">${{ "%.2f"|format(order.total_price) }}</span>
+                </div>
+            </div>
+            
+            <div class="order-details">
+                <h3>Order Details</h3>
+                
+                <table class="order-table">
+                    <thead>
+                        <tr>
+                            <th>Item</th>
+                            <th>Quantity</th>
+                            <th>Price</th>
+                            <th>Subtotal</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in order_items %}
+                            <tr>
+                                <td>{{ item.name }}</td>
+                                <td>{{ item.quantity }}</td>
+                                <td>${{ "%.2f"|format(item.price) }}</td>
+                                <td>${{ "%.2f"|format(item.subtotal) }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <td colspan="3" class="text-right">Total:</td>
+                            <td><strong>${{ "%.2f"|format(order.total_price) }}</strong></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+            
+            <div class="delivery-info">
+                <h3>Delivery Information</h3>
+                <div class="customer-info-box">
+                    <p><strong>{{ customer.first_name }} {{ customer.last_name }}</strong></p>
+                    <p>{{ customer.address }}</p>
+                    <p>{{ customer.telephone }}</p>
+                    <p>{{ customer.email }}</p>
+                </div>
+            </div>
+            
+            <div class="confirmation-actions">
+                <a href="{{ url_for('customer.app') }}" class="btn btn-primary">Continue Shopping</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .confirmation-card {
+        background-color: var(--card-background);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-medium);
+        padding: 40px;
+        margin-bottom: 40px;
+        max-width: 800px;
+        margin-left: auto;
+        margin-right: auto;
+        text-align: center;
+    }
+    
+    .confirmation-icon {
+        margin-bottom: 20px;
+    }
+    
+    .confirmation-card h2 {
+        font-size: 28px;
+        margin-bottom: 12px;
+        color: var(--text-primary);
+    }
+    
+    .confirmation-message {
+        color: var(--text-secondary);
+        margin-bottom: 30px;
+        font-size: 16px;
+    }
+    
+    .order-info {
+        background-color: var(--background);
+        border-radius: var(--radius-md);
+        padding: 20px;
+        margin-bottom: 30px;
+        display: inline-block;
+        min-width: 300px;
+    }
+    
+    .info-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 8px 0;
+        border-bottom: 1px dashed var(--border);
+    }
+    
+    .info-row:last-child {
+        border-bottom: none;
+    }
+    
+    .info-label {
+        font-weight: 600;
+        color: var(--text-secondary);
+    }
+    
+    .info-value {
+        color: var(--text-primary);
+    }
+    
+    .order-details,
+    .delivery-info {
+        margin-bottom: 30px;
+    }
+    
+    .order-details h3,
+    .delivery-info h3 {
+        font-size: 18px;
+        margin-bottom: 16px;
+        text-align: left;
+        color: var(--text-primary);
+    }
+    
+    .order-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    
+    .order-table th, 
+    .order-table td {
+        padding: 12px;
+        text-align: left;
+        border-bottom: 1px solid var(--border);
+    }
+    
+    .order-table th {
+        font-weight: 600;
+        color: var(--text-secondary);
+        background-color: var(--background);
+        font-size: 14px;
+    }
+    
+    .order-table tfoot td {
+        border-bottom: none;
+    }
+    
+    .text-right {
+        text-align: right;
+    }
+    
+    .customer-info-box {
+        background-color: var(--background);
+        border-radius: var(--radius-md);
+        padding: 16px;
+        text-align: left;
+    }
+    
+    .customer-info-box p {
+        margin: 0 0 4px 0;
+    }
+    
+    .confirmation-actions {
+        margin-top: 30px;
+    }
+    
+    @media (max-width: 768px) {
+        .confirmation-card {
+            padding: 20px;
+        }
+    }
+</style>
+{% endblock %}

@@ -1,0 +1,191 @@
+{% extends "layout_v2.html" %}
+
+{% block title %}Your Cart - Le Pizzeria{% endblock %}
+
+{% block content_wrapper %}
+<div class="app-container">
+    <!-- App Header -->
+    <div class="app-header">
+        <div class="container">
+            <div class="header-content">
+                <div class="welcome-section">
+                    <h1 class="app-title">Your Shopping Cart</h1>
+                </div>
+                <div class="header-actions">
+                    <a href="{{ url_for('customer.app') }}" class="btn btn-secondary">Continue Shopping</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="container">
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <div class="flash-message flash-{{ category }}">
+                            <span>{{ message }}</span>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <div class="container">
+        {% if cart_items %}
+            <div class="card mt-4">
+                <div class="card-content">
+                    <table class="cart-table">
+                        <thead>
+                            <tr>
+                                <th>Pizza</th>
+                                <th>Price</th>
+                                <th>Quantity</th>
+                                <th>Subtotal</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in cart_items %}
+                                <tr>
+                                    <td class="pizza-name-cell">
+                                        {{ item.name }}
+                                        {% if item.is_vegetarian %}
+                                            <span class="vegetarian-badge">🌱 Veg</span>
+                                        {% else %}
+                                            <span class="non-vegetarian-badge">🥩 Non-veg</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>${{ "%.2f"|format(item.price) }}</td>
+                                    <td>{{ item.quantity }}</td>
+                                    <td>${{ "%.2f"|format(item.subtotal) }}</td>
+                                    <td>
+                                        <form action="{{ url_for('customer.remove_from_cart') }}" method="POST">
+                                            <input type="hidden" name="pizza_id" value="{{ item.pizza_id }}">
+                                            <button type="submit" class="remove-btn">Remove</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot>
+                            <tr>
+                                <td colspan="3" class="text-right">Total:</td>
+                                <td colspan="2"><strong>${{ "%.2f"|format(total) }}</strong></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+            
+            <div class="cart-actions mt-4">
+                <div class="row">
+                    <div class="col">
+                        <form action="{{ url_for('customer.clear_cart') }}" method="POST">
+                            <button type="submit" class="btn btn-secondary" 
+                                    onclick="return confirm('Are you sure you want to clear your cart?')">
+                                Clear Cart
+                            </button>
+                        </form>
+                    </div>
+                    <div class="col text-right">
+                        <a href="{{ url_for('customer.checkout') }}" class="btn btn-primary">
+                            Proceed to Checkout
+                        </a>
+                    </div>
+                </div>
+            </div>
+        {% else %}
+            <div class="empty-cart-message">
+                <h2>Your cart is empty</h2>
+                <p>Add some delicious pizzas to get started!</p>
+                <a href="{{ url_for('customer.app') }}" class="btn btn-primary mt-3">Browse Pizzas</a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<style>
+    .cart-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    
+    .cart-table th, .cart-table td {
+        padding: 12px;
+        text-align: left;
+        border-bottom: 1px solid var(--border);
+    }
+    
+    .cart-table th {
+        font-weight: 600;
+        color: var(--text-secondary);
+        background-color: var(--background);
+        font-size: 14px;
+    }
+    
+    .vegetarian-badge {
+        display: inline-block;
+        padding: 2px 6px;
+        background-color: rgba(39, 174, 96, 0.1);
+        color: var(--success);
+        border-radius: 4px;
+        font-size: 12px;
+        margin-left: 8px;
+    }
+    
+    .non-vegetarian-badge {
+        display: inline-block;
+        padding: 2px 6px;
+        background-color: rgba(231, 76, 60, 0.1);
+        color: var(--error);
+        border-radius: 4px;
+        font-size: 12px;
+        margin-left: 8px;
+    }
+    
+    .remove-btn {
+        background-color: var(--error);
+        color: white;
+        border: none;
+        padding: 4px 8px;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+    
+    .text-right {
+        text-align: right;
+    }
+    
+    .cart-actions {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 40px;
+    }
+    
+    .row {
+        display: flex;
+        width: 100%;
+    }
+    
+    .col {
+        flex: 1;
+    }
+    
+    .empty-cart-message {
+        text-align: center;
+        padding: 60px 0;
+        color: var(--text-secondary);
+    }
+    
+    .mt-3 {
+        margin-top: 16px;
+    }
+    
+    .mt-4 {
+        margin-top: 24px;
+    }
+</style>
+{% endblock %}
