@@ -38,11 +38,12 @@ def register():
         email = request.form.get('email')
         telephone = request.form.get('telephone')
         address = request.form.get('address')
+        postal_code = request.form.get('postal_code')
         password = request.form.get('password')
         confirm_password = request.form.get('confirm_password')
         
         # Validation
-        if not all([first_name, last_name, email, telephone, address, password, confirm_password]):
+        if not all([first_name, last_name, email, telephone, address, password, postal_code, confirm_password]):
             flash('All fields are required.', 'error')
             return render_template("customer_register.html")
         
@@ -70,6 +71,7 @@ def register():
                 email=email,
                 telephone=telephone,
                 address=address,
+                postal_code=postal_code,
                 password_hash=password_hash
             )
             
@@ -85,8 +87,6 @@ def register():
             return render_template("customer_register.html")
     
     return render_template("customer_register.html")
-
-# Add this after your customer registration route:
 
 @customer_bp.route('/customer/login', methods=['GET', 'POST'])
 def login():

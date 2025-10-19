@@ -23,6 +23,7 @@ class Customer(db.Model):
     email = db.Column(db.String(120), nullable=False, unique=True)
     telephone = db.Column(db.String(20), nullable=False)
     address = db.Column(db.String(200), nullable=False)
+    postal_code = db.Column(db.String(10))
     password_hash = db.Column(db.String(255), nullable=False)
     def set_password(self, password):
         # Add pepper to password before hashing
@@ -117,12 +118,36 @@ class Order(db.Model):
     time_stamp = db.Column(db.DateTime, default=datetime.utcnow)
 
     order_items = db.relationship("OrderItem", backref="order", lazy=True)
-    delivery_person = db.relationship("DeliveryPerson", backref="order", uselist=False)  # One-to-one relationship
+    delivery_person = db.relationship("DeliveryPerson", backref=db.backref("orders", lazy=True))
 
 class DeliveryPerson(db.Model):
     __tablename__ = "DeliveryPerson"
     delivery_person_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     name = db.Column(db.String(100), nullable=False)
+    postal_code = db.Column(db.String(10))
+
+    postal_ranges = db.relationship(
+        "DeliveryPersonPostalRange",
+        back_populates="delivery_person",
+        cascade="all, delete-orphan",
+        lazy=True
+    )
+
+class DeliveryPersonPostalRange(db.Model):
+    __tablename__ = "delivery_person_postal_range"
+    delivery_person_id = db.Column(
+        db.Integer,
+        db.ForeignKey("DeliveryPerson.delivery_person_id"),
+        primary_key=True
+    )
+    start_zip = db.Column(db.Integer, primary_key=True)
+    end_zip = db.Column(db.Integer, primary_key=True)
+
+    __table_args__ = (
+        db.CheckConstraint('start_zip <= end_zip', name='ck_dppr_bounds'),
+    )
+
+    delivery_person = db.relationship("DeliveryPerson", back_populates="postal_ranges")
 
 class Admin(db.Model):
     __tablename__ = "Admin"
