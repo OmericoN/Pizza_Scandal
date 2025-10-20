@@ -2,6 +2,7 @@ from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 from dotenv import load_dotenv
 from datetime import datetime
+from sqlalchemy import SmallInteger, Column
 import os
 load_dotenv()
 db = SQLAlchemy()
@@ -24,6 +25,7 @@ class Customer(db.Model):
     telephone = db.Column(db.String(20), nullable=False)
     address = db.Column(db.String(200), nullable=False)
     postal_code = db.Column(db.String(10))
+    gender = db.Column(db.SmallInteger, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
     def set_password(self, password):
         # Add pepper to password before hashing
