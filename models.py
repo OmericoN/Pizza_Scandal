@@ -15,7 +15,6 @@ pizza_ingredient = db.Table(
    db.Column('ingredient_id', db.Integer, db.ForeignKey('Ingredient.ingredient_id'), primary_key=True)
 )
 
-
 class Customer(db.Model):
     __tablename__ = "Customer"
     customer_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
@@ -69,20 +68,13 @@ class Pizza(db.Model):
    __tablename__ = "Pizza"
    pizza_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
    name = db.Column(db.String(100), nullable=False)
-   price = db.Column(db.Numeric(5,2), nullable=False)
    description = db.Column(db.String(200), nullable=False)
    ingredients = db.relationship(
        'Ingredient',
        secondary=pizza_ingredient,
        back_populates='pizzas'
    )
-   def compute_and_set_price(self):
-       base_cost = sum(float(ingredient.cost) for ingredient in self.ingredients)
-       margin = 0.4
-       vat = 0.09 #temp VAT for now
-       self.price = round(base_cost * (1+margin) * (1+vat), 2)
-       db.session.commit()
-
+   
    def __repr__(self):
        return f"Pizza id: {self.pizza_id}, name: {self.name}"
 
@@ -127,6 +119,7 @@ class DeliveryPerson(db.Model):
     delivery_person_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     name = db.Column(db.String(100), nullable=False)
     postal_code = db.Column(db.String(10))
+    last_assigned_at = db.Column(db.DateTime, nullable=True)  # NEW
 
     postal_ranges = db.relationship(
         "DeliveryPersonPostalRange",

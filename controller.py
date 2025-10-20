@@ -4,7 +4,7 @@ from werkzeug.security import check_password_hash
 from sqlalchemy.orm import joinedload
 from sqlalchemy import func
 import os
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import joinedload
 
 
@@ -25,12 +25,15 @@ def verify_password_with_pepper(password, password_hash):
     peppered_password = password + PEPPER
     return check_password_hash(password_hash, peppered_password)
 
+
+#-------------------------Choose the right delivery person with cooldown------------------------------------------------------------
 def _choose_delivery_person_for_zip(postal_code):
-    """Pick a delivery person whose range covers the postal_code; fallback to random."""
     try:
         pc = int(str(postal_code).strip())
     except (TypeError, ValueError):
         pc = None
+
+    cooldown_threshold = datetime.now(timezone.utc) - timedelta(minutes=30)
 
     if pc is not None:
         dp = (DeliveryPerson.query
@@ -38,14 +41,24 @@ def _choose_delivery_person_for_zip(postal_code):
                     DeliveryPersonPostalRange.delivery_person_id == DeliveryPerson.delivery_person_id)
               .filter(DeliveryPersonPostalRange.start_zip <= pc,
                       DeliveryPersonPostalRange.end_zip >= pc)
+              .filter(
+                  (DeliveryPerson.last_assigned_at.is_(None)) |
+                  (DeliveryPerson.last_assigned_at <= cooldown_threshold)
+              )  # NEW: only pick available couriers
               .order_by(func.random())
               .first())
         if dp:
             return dp
-    return DeliveryPerson.query.order_by(func.random()).first()
+    return (DeliveryPerson.query
+            .filter(
+                (DeliveryPerson.last_assigned_at.is_(None)) |
+                (DeliveryPerson.last_assigned_at <= cooldown_threshold)
+            )
+            .order_by(func.random())
+            .first())
 
 #-------------------------------
-#hwllo
+
 
 
 
@@ -272,6 +285,10 @@ def checkout():
                 else:
                     flash("Invalid discount code", "error")
             
+            if dp:
+                dp.last_assigned_at = datetime.now(timezone.utc)
+                db.session.add(dp)
+
             db.session.commit() # transactions is only completed and is saved in database iff checkout is successful
             
             # Clear cart
