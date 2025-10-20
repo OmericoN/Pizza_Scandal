@@ -71,12 +71,36 @@ def register():
         email = request.form.get('email')
         telephone = request.form.get('telephone')
         address = request.form.get('address')
+        postal_code = request.form.get('postal_code')
+        gender = request.form.get('gender')  # Get gender from form
         password = request.form.get('password')
         confirm_password = request.form.get('confirm_password')
         
         # Validation
-        if not all([first_name, last_name, email, telephone, address, password, confirm_password]):
+        if not all([first_name, last_name, email, telephone, address, postal_code, gender, password, confirm_password]):
             flash('All fields are required.', 'error')
+            return render_template("customer_register.html")
+        
+        # Convert gender string to integer: 0=male, 1=female, 2=other
+        gender_map = {
+            'male': 0,
+            'female': 1,
+            'other': 2
+        }
+        
+        if gender not in gender_map:
+            flash('Please select a valid gender.', 'error')
+            return render_template("customer_register.html")
+        
+        gender_int = gender_map[gender]
+        
+        # Validate postal code is numeric
+        try:
+            postal_code_int = int(postal_code)
+            if postal_code_int < 0:
+                raise ValueError
+        except (ValueError, TypeError):
+            flash('Please enter a valid postal code (numbers only).', 'error')
             return render_template("customer_register.html")
         
         if password != confirm_password:
@@ -103,6 +127,8 @@ def register():
                 email=email,
                 telephone=telephone,
                 address=address,
+                postal_code=postal_code_int,
+                gender=gender_int,  # ✅ Save as integer (0, 1, or 2)
                 password_hash=password_hash
             )
             
@@ -110,11 +136,11 @@ def register():
             db.session.commit()
             
             flash('Registration successful! You can now log in.', 'success')
-            return redirect(url_for('customer.login'))  # You'll need to create this login route too
+            return redirect(url_for('customer.login'))
             
         except Exception as e:
             db.session.rollback()
-            flash('Registration failed. Please try again.', 'error')
+            flash(f'Registration failed: {str(e)}', 'error')
             return render_template("customer_register.html")
     
     return render_template("customer_register.html")
@@ -288,8 +314,7 @@ def checkout():
                 customer_id=session['customer_id'],
                 delivery_person_id=(dp.delivery_person_id if dp else None),
                 total_price=total_with_vat,
-                time_stamp=datetime.now(timezone.utc),
-                status='pending'
+                time_stamp=datetime.now()
             )
             db.session.add(new_order)
             db.session.flush()  # Get order ID
@@ -380,29 +405,6 @@ def order_confirmation(order_id):
                          customer=customer,
                          subtotal_without_vat=subtotal_without_vat,
                          vat_amount=vat_amount)
-
-@customer_bp.route('/customer/orders')
-def my_orders():
-    if 'customer_id' not in session:
-        flash('Please log in first.', 'error')
-        return redirect(url_for('customer.login'))
-    
-    orders = Order.query.filter_by(customer_id=session['customer_id']).order_by(Order.time_stamp.desc()).all()
-    
-    order_list = []
-    for order in orders:
-        order_info = {
-            'order_id': order.order_id,
-            'total_price': float(order.total_price),
-            'time_stamp': order.time_stamp,
-            'status': order.get_status(),  # Use dynamic status
-            'delivery_person': order.delivery_person.name if order.delivery_person else 'Assigning...',
-            'delivered_at': order.delivered_at
-        }
-        order_list.append(order_info)
-    
-    return render_template('customer_orders.html', orders=order_list)
-
 
 @main_bp.route("/menu")
 def menu():
@@ -669,12 +671,13 @@ def orders():
         order_amount = float(order.total_price) if order.total_price else 0
         total_revenue += order_amount
         
+        order_status = 'pending' 
         
         order_info = {
             'order_id': order.order_id,
             'order_date': order.time_stamp if order.time_stamp else datetime.now(),  # Using time_stamp
             'total_amount': order_amount,  # Using total_price from model
-            'status': order.get_status(),  # Default status
+            'status': order_status,  # Default status
             'customer_name': customer_name,
             'customer_email': customer_email,
             'pizza_items': pizza_items

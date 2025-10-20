@@ -78,15 +78,82 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="address" class="form-label">Delivery Address *</label>
-                        <textarea id="address" 
-                                  name="address" 
-                                  class="form-textarea" 
-                                  required 
-                                  maxlength="255"
-                                  rows="3"
-                                  placeholder="Enter your full delivery address including street, city, postal code">{{ request.form.address if request.form.address }}</textarea>
-                        <small class="form-help">Please provide a complete address for accurate delivery</small>
+                        <label for="address" class="form-label">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                                <circle cx="12" cy="10" r="3"></circle>
+                            </svg>
+                            Address
+                        </label>
+                        <textarea name="address" id="address" class="form-input" rows="3" required placeholder="Enter your full delivery address"></textarea>
+                    </div>
+
+                    <!-- Postal Code (NEW) -->
+                    <div class="form-group">
+                        <label for="postal_code" class="form-label">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                                <line x1="16" y1="2" x2="16" y2="6"></line>
+                                <line x1="8" y1="2" x2="8" y2="6"></line>
+                                <line x1="3" y1="10" x2="21" y2="10"></line>
+                            </svg>
+                            Postal Code *
+                        </label>
+                        <input type="text" name="postal_code" id="postal_code" class="form-input" required 
+                               placeholder="e.g., 6200" pattern="[0-9]+" title="Please enter numbers only" maxlength="10"
+                               value="{{ request.form.postal_code if request.form.postal_code }}">
+                        <small class="form-hint">Enter your postal/ZIP code for delivery zone matching</small>
+                    </div>
+
+                    <!-- Gender (NEW) -->
+                    <div class="form-group">
+                        <label class="form-label">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                                <circle cx="12" cy="7" r="4"></circle>
+                            </svg>
+                            Gender *
+                        </label>
+                        <div class="gender-options">
+                            <label class="radio-option">
+                                <input type="radio" name="gender" value="male" required 
+                                       {% if request.form.gender == 'male' %}checked{% endif %}>
+                                <span class="radio-label">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <circle cx="10" cy="14" r="8"></circle>
+                                        <line x1="14.31" y1="8" x2="20.05" y2="2.26"></line>
+                                        <line x1="15.5" y1="2" x2="20.05" y2="2.26"></line>
+                                        <line x1="20.05" y1="2.26" x2="20.31" y2="6.81"></line>
+                                    </svg>
+                                    Male
+                                </span>
+                            </label>
+                            <label class="radio-option">
+                                <input type="radio" name="gender" value="female" required
+                                       {% if request.form.gender == 'female' %}checked{% endif %}>
+                                <span class="radio-label">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <circle cx="12" cy="8" r="7"></circle>
+                                        <line x1="12" y1="15" x2="12" y2="22"></line>
+                                        <line x1="8" y1="19" x2="16" y2="19"></line>
+                                    </svg>
+                                    Female
+                                </span>
+                            </label>
+                            <label class="radio-option">
+                                <input type="radio" name="gender" value="other" required
+                                       {% if request.form.gender == 'other' %}checked{% endif %}>
+                                <span class="radio-label">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <circle cx="12" cy="12" r="10"></circle>
+                                        <line x1="12" y1="8" x2="12" y2="12"></line>
+                                        <circle cx="12" cy="16" r="0.5" fill="currentColor"></circle>
+                                    </svg>
+                                    Other
+                                </span>
+                            </label>
+                        </div>
+                        <small class="form-hint">This information helps us personalize your experience</small>
                     </div>
 
                     <div class="form-row">
@@ -290,6 +357,56 @@
     border-color: var(--success);
 }
 
+/* Gender Radio Buttons */
+.gender-options {
+    display: flex;
+    gap: var(--space-md);
+    flex-wrap: wrap;
+}
+
+.radio-option {
+    flex: 1;
+    min-width: 140px;
+    cursor: pointer;
+}
+
+.radio-option input[type="radio"] {
+    display: none;
+}
+
+.radio-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    border: 2px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--background);
+    transition: all 0.3s ease;
+    font-weight: 500;
+}
+
+.radio-label svg {
+    flex-shrink: 0;
+    color: var(--text-secondary);
+    transition: color 0.3s ease;
+}
+
+.radio-option:hover .radio-label {
+    border-color: var(--brand);
+    background: rgba(210, 105, 30, 0.05);
+}
+
+.radio-option input[type="radio"]:checked + .radio-label {
+    border-color: var(--brand);
+    background: linear-gradient(135deg, rgba(210, 105, 30, 0.1) 0%, rgba(230, 126, 34, 0.1) 100%);
+    color: var(--brand);
+}
+
+.radio-option input[type="radio"]:checked + .radio-label svg {
+    color: var(--brand);
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
     .registration-container {
@@ -318,6 +435,14 @@
     
     .registration-title {
         font-size: 24px;
+    }
+    
+    .gender-options {
+        flex-direction: column;
+    }
+    
+    .radio-option {
+        min-width: 100%;
     }
 }
 </style>
