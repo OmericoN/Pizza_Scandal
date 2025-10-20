@@ -406,6 +406,30 @@ def order_confirmation(order_id):
                          subtotal_without_vat=subtotal_without_vat,
                          vat_amount=vat_amount)
 
+@customer_bp.route('/customer/orders')
+def my_orders():
+   if 'customer_id' not in session:
+       flash('Please log in first.', 'error')
+       return redirect(url_for('customer.login'))
+  
+   orders = Order.query.filter_by(customer_id=session['customer_id']).order_by(Order.time_stamp.desc()).all()
+  
+   order_list = []
+   for order in orders:
+       order_info = {
+           'order_id': order.order_id,
+           'total_price': float(order.total_price),
+           'time_stamp': order.time_stamp,
+           'status': order.get_status(),  # Use dynamic status
+           'delivery_person': order.delivery_person.name if order.delivery_person else 'Assigning...',
+           'delivered_at': order.delivered_at
+       }
+       order_list.append(order_info)
+  
+   return render_template('customer_orders.html', orders=order_list)
+
+
+
 @main_bp.route("/menu")
 def menu():
     pizzas = Pizza.query.all()
