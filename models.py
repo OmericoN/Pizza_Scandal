@@ -174,7 +174,7 @@ class Admin(db.Model):
 
 def seed_data():
     if Customer.query.count() == 0:
-        demo_customer = Customer(first_name="demo", last_name="demo", email="demo@pizzascandal.com", telephone="+000000000", address="le pizzeria, earth")
+        demo_customer = Customer(first_name="demo", last_name="demo", email="demo@pizzascandal.com", telephone="+000000000", address="le pizzeria, earth", postal_code="6200", gender=2)
         demo_customer.set_password("demo123")
         db.session.add(demo_customer)
     
