@@ -81,7 +81,9 @@
                             <label class="form-label">Deliver to:</label>
                             <div class="customer-info">
                                 <p><strong>{{ customer.first_name }} {{ customer.last_name }}</strong></p>
+                                <p>{{ customer.email }}</p>
                                 <p>{{ customer.telephone }}</p>
+                                <p><strong>Postal Code:</strong> {{ customer.postal_code }}</p>
                             </div>
                         </div>
                         
@@ -220,8 +222,37 @@
         margin-top: 24px;
     }
     
+    .info-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+    }
+
+    .info-item {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .info-label {
+        font-size: 12px;
+        color: var(--text-secondary);
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .info-value {
+        color: var(--text-primary);
+        font-size: 14px;
+    }
+
     @media (max-width: 768px) {
         .checkout-layout {
+            grid-template-columns: 1fr;
+        }
+
+        .info-grid {
             grid-template-columns: 1fr;
         }
     }
