@@ -288,7 +288,8 @@ def checkout():
                 customer_id=session['customer_id'],
                 delivery_person_id=(dp.delivery_person_id if dp else None),
                 total_price=total_with_vat,
-                time_stamp=datetime.now()
+                time_stamp=datetime.now(timezone.utc),
+                status='pending'
             )
             db.session.add(new_order)
             db.session.flush()  # Get order ID
@@ -379,6 +380,29 @@ def order_confirmation(order_id):
                          customer=customer,
                          subtotal_without_vat=subtotal_without_vat,
                          vat_amount=vat_amount)
+
+@customer_bp.route('/customer/orders')
+def my_orders():
+    if 'customer_id' not in session:
+        flash('Please log in first.', 'error')
+        return redirect(url_for('customer.login'))
+    
+    orders = Order.query.filter_by(customer_id=session['customer_id']).order_by(Order.time_stamp.desc()).all()
+    
+    order_list = []
+    for order in orders:
+        order_info = {
+            'order_id': order.order_id,
+            'total_price': float(order.total_price),
+            'time_stamp': order.time_stamp,
+            'status': order.get_status(),  # Use dynamic status
+            'delivery_person': order.delivery_person.name if order.delivery_person else 'Assigning...',
+            'delivered_at': order.delivered_at
+        }
+        order_list.append(order_info)
+    
+    return render_template('customer_orders.html', orders=order_list)
+
 
 @main_bp.route("/menu")
 def menu():
@@ -645,13 +669,12 @@ def orders():
         order_amount = float(order.total_price) if order.total_price else 0
         total_revenue += order_amount
         
-        order_status = 'pending' 
         
         order_info = {
             'order_id': order.order_id,
             'order_date': order.time_stamp if order.time_stamp else datetime.now(),  # Using time_stamp
             'total_amount': order_amount,  # Using total_price from model
-            'status': order_status,  # Default status
+            'status': order.get_status(),  # Default status
             'customer_name': customer_name,
             'customer_email': customer_email,
             'pizza_items': pizza_items

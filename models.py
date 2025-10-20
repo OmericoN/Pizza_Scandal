@@ -1,7 +1,7 @@
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 from dotenv import load_dotenv
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from sqlalchemy import SmallInteger, Column
 import os
 load_dotenv()
@@ -110,10 +110,35 @@ class Order(db.Model):
     delivery_person_id = db.Column(db.Integer, db.ForeignKey("DeliveryPerson.delivery_person_id"))  # Enforces one-to-one relationship
     total_price = db.Column(db.Numeric(7,2), nullable=False)
     time_stamp = db.Column(db.DateTime, default=datetime.utcnow)
+    status = db.Column(db.String(20), nullable=False, default='pending')  
+    delivered_at = db.Column(db.DateTime, nullable=True)  
 
     order_items = db.relationship("OrderItem", backref="order", lazy=True)
     delivery_person = db.relationship("DeliveryPerson", backref=db.backref("orders", lazy=True))
 
+    def get_status(self): 
+        """Auto-calculate status based on elapsed time"""
+        if self.status == 'delivered':
+            return 'delivered'
+        
+        if not self.time_stamp:
+            return 'pending'
+        
+        elapsed = datetime.now(timezone.utc) - self.time_stamp.replace(tzinfo=timezone.utc)
+        minutes = elapsed.total_seconds() / 60
+        
+        if minutes < 10:
+            return 'preparing'
+        elif minutes < 30:
+            return 'out_for_delivery'
+        else:
+            # Auto-mark as delivered after 30 minutes
+            self.status = 'delivered'
+            if not self.delivered_at:
+                self.delivered_at = self.time_stamp + timedelta(minutes=30)
+            db.session.commit()
+            return 'delivered'
+        
 class DeliveryPerson(db.Model):
     __tablename__ = "DeliveryPerson"
     delivery_person_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
