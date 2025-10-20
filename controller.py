@@ -154,6 +154,32 @@ def logout():
     flash('Logged out successfully!', 'success')
     return redirect(url_for('main.index'))
 
+
+def compute_pizza_price(pizza):
+    """Calculate pizza price based on ingredients + 40% margin + 9% VAT"""
+    pizza_ingredients = db.session.query(
+        Ingredient.ingredient_id,
+        Ingredient.name,
+        Ingredient.cost
+    ).join(
+        pizza_ingredient,
+        pizza_ingredient.c.ingredient_id == Ingredient.ingredient_id
+    ).filter(
+        pizza_ingredient.c.pizza_id == pizza.pizza_id
+    ).all()
+
+    # Calculate base cost from ingredients - use pizza_ingredients (query results) not pizza_ingredient (table)
+    base_cost = sum(float(ing.cost) for ing in pizza_ingredients) 
+    
+    # Apply 40% margin
+    price_with_margin = base_cost * 1.40
+    
+    # Apply 9% VAT
+    final_price = price_with_margin * 1.09
+    
+    return round(final_price, 1)
+
+
 @customer_bp.route('/customer/app')
 def app():
     if 'customer_id' not in session:
@@ -161,7 +187,6 @@ def app():
         return redirect(url_for('customer.login'))
     
     # Get pizzas with ingredients eagerly loaded
-    from sqlalchemy.orm import joinedload
     pizzas = Pizza.query.options(joinedload(Pizza.ingredients)).order_by(Pizza.pizza_id.asc()).all()
     
     # Prepare clean pizza data for template
@@ -186,10 +211,13 @@ def app():
         else:
             ingredients_text = 'Delicious pizza with premium ingredients'
         
+        # Calculate dynamic price
+        dynamic_price = compute_pizza_price(pizza)
+        
         pizza_info = {
             'pizza_id': pizza.pizza_id,
             'name': pizza.name,
-            'price': pizza.price,
+            'price': dynamic_price,  # Use dynamic price
             'is_vegetarian': is_vegetarian,
             'ingredients_text': ingredients_text,
             'ingredient_count': len(ingredient_names) if ingredient_names else 0
@@ -205,6 +233,9 @@ def app():
                          pizzas=pizza_data, 
                          customer=customer,
                          customer_first_name=customer_first_name)
+
+
+
 
 @customer_bp.route("/customer/app/checkout", methods=['GET', 'POST'])
 def checkout():
@@ -234,7 +265,6 @@ def checkout():
         cart_items.append({
             'pizza_id': pizza_id,
             'name': item['name'],
-            'price': item['price'],
             'quantity': item['quantity'],
             'subtotal': subtotal,
             'is_vegetarian': item['is_vegetarian']
@@ -329,19 +359,26 @@ def order_confirmation(order_id):
     for item in order.order_items:
         pizza = Pizza.query.get(item.pizza_id)
         if pizza:
+            # Use unit_price from order_item (price at time of purchase)
             order_items.append({
                 'name': pizza.name,
                 'quantity': item.quantity,
-                'price': pizza.price,
-                'subtotal': pizza.price * item.quantity
+                'price': float(item.unit_price),  # Use stored unit_price
+                'subtotal': float(item.unit_price) * item.quantity
             })
     
     customer = Customer.query.get(session['customer_id'])
     
+    # Pre-calculate VAT values
+    subtotal_without_vat = float(order.total_price) / 1.09
+    vat_amount = float(order.total_price) - subtotal_without_vat
+    
     return render_template('customer_order_confirmation.html',
                          order=order,
                          order_items=order_items,
-                         customer=customer)
+                         customer=customer,
+                         subtotal_without_vat=subtotal_without_vat,
+                         vat_amount=vat_amount)
 
 @main_bp.route("/menu")
 def menu():
@@ -470,16 +507,19 @@ def pizzas():
         
         total_ingredient_cost = sum(float(ingredient.cost) for ingredient in pizza.ingredients) if pizza.ingredients else 0
         
+        # Calculate dynamic price
+        dynamic_price = compute_pizza_price(pizza)
+        
         pizza_info = {
             'pizza_id': pizza.pizza_id,
             'name': pizza.name,
-            'price': float(pizza.price),
+            'price': dynamic_price,  # Use dynamic price
             'description': pizza.description,
             'is_vegetarian': is_vegetarian,
             'ingredient_names': ingredient_names,
             'ingredient_count': len(ingredient_names),
             'total_ingredient_cost': total_ingredient_cost,
-            'profit_margin': float(pizza.price) - total_ingredient_cost if total_ingredient_cost > 0 else 0
+            'profit_margin': dynamic_price - total_ingredient_cost if total_ingredient_cost > 0 else 0
         }
         pizza_data.append(pizza_info)
     
@@ -647,6 +687,10 @@ def add_to_cart():
     # Get pizza details from database
     pizza = Pizza.query.get_or_404(pizza_id)
     
+    # Calculate dynamic price based on ingredients
+    dynamic_price = compute_pizza_price(pizza)
+
+    
     # Check if pizza is vegetarian
     is_vegetarian = True
     for ingredient in pizza.ingredients:
@@ -658,14 +702,14 @@ def add_to_cart():
     if 'cart' not in session:
         session['cart'] = {}
     
-    # Add to cart
+    # Add to cart with dynamically calculated price
     cart = session['cart']
     if pizza_id in cart:
         cart[pizza_id]['quantity'] += quantity
     else:
         cart[pizza_id] = {
             'name': pizza.name,
-            'price': float(pizza.price),
+            'price': dynamic_price,  # Use dynamic price instead of pizza.price
             'quantity': quantity,
             'is_vegetarian': is_vegetarian
         }
