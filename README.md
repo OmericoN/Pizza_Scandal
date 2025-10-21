@@ -1,12 +1,14 @@
 # Pizza_Scandal
-Collaborated project done by Omer and Raul for the Databases course (University Maastricht)
-## ORM setup
-Install SQLAlchemy as the ORM `pip install SQLAlchemy`  
-Install mysql driver for python `pip install pymysql`  
+Collaborated project done by Omer [i6384394] and Raul [i6399837] (Group 6) for the Databases course (University Maastricht)
+
 
 ## How to use the app
 **Create Virtual Environment**
-`source .venv/bin/activate (mac)`
+```bash
+python -m venv .venv
+source .venv/bin/activate      # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+```
 
 **Run python app.py**
 `python app.py`
@@ -113,9 +115,26 @@ Pizza_Scandal/
 ### Dynamic Pizza Pricing
 Pizza prices are calculated based on ingredient costs in real-time:
 ```python
-def calculate_pizza_price(pizza):
-    total = sum(ingredient.cost for ingredient in pizza.ingredients)
-    return total
+def compute_pizza_price(pizza):
+    """Calculate pizza price based on ingredients + 40% margin + 9% VAT"""
+    pizza_ingredients = db.session.query(
+        Ingredient.ingredient_id,
+        Ingredient.name,
+        Ingredient.cost
+    ).join(
+        pizza_ingredient,
+        pizza_ingredient.c.ingredient_id == Ingredient.ingredient_id
+    ).filter(
+        pizza_ingredient.c.pizza_id == pizza.pizza_id
+    ).all()
+
+    base_cost = sum(float(ing.cost) for ing in pizza_ingredients) 
+    
+    price_with_margin = base_cost * 1.40
+    
+    final_price = price_with_margin * 1.09
+    
+    return round(final_price, 1)
 ```
 
 ### Delivery Person Assignment
@@ -129,3 +148,15 @@ Status updates automatically based on elapsed time:
 - 0-10 min → `preparing`
 - 10-30 min → `out_for_delivery`
 - 30+ min → `delivered`
+
+### Discount Code Eligibility
+One time discount
+	check eligibility: iterate through customer's orders, if an order contains the one-time discount code, not eligible anymore. Otherwise, valid
+
+Birthday Discount
+	check customer's DOB, if Today==DOB, then valid if wasn't used already today (no order from today with the same discount code), otherwise, invalid.
+
+Loyalty Discount 
+	1.every time a customer places an order, add the amount of pizzas to customer's pizza count
+	2.check if customer's pizza count + current cart's pizzas count >= 10. If so, add the pizzas from cart to customer's pizza count and deduct -10.
+
