@@ -617,14 +617,135 @@ def clear_cart():
     return redirect(url_for('customer.app'))
 
 
+def check_discount_eligibility(customer_id, discount_code, cart):
+    """
+    Check if customer is eligible for a discount code.
+    Returns: (is_eligible: bool, message: str, discount_type: DiscountType or None, discount_amount: float)
+    """
+    if not customer_id or not discount_code:
+        return False, "Invalid request", None, 0
+    
+    code = DiscountCode.query.filter_by(code=discount_code.upper().strip()).first()
+    if not code:
+        return False, f"Discount code '{discount_code}' does not exist", None, 0
+    
+    discount_type = DiscountType.query.get(code.discount_type_id)
+    if not discount_type:
+        return False, "Discount type configuration error", None, 0
+    
+    customer = Customer.query.get(customer_id)
+    if not customer:
+        return False, "Customer not found", None, 0
+    
+    if discount_type.name == "One-Time Promo":
+        orders_with_this_code = (
+            db.session.query(Order)
+            .filter(
+                Order.customer_id == customer_id,
+                Order.discount_code_id == code.discount_code_id
+            )
+            .all() 
+        )
+        
+        if orders_with_this_code:
+            order_count = len(orders_with_this_code)
+            return False, f"This one-time discount code has already been used by you ({order_count} time(s)). Each customer can only use WELCOME20 once.", None, 0
+        
+        return True, f"One-Time Promo: {discount_type.percent}% off your order", discount_type, 0
+    
+    elif discount_type.name == "Birthday Discount":
+        if not customer.is_birthday_today():
+            return False, f"Birthday discount only works on your birthday ({customer.dob.strftime('%B %d')}). Come back then!", None, 0
+        
+        today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        today_end = datetime.now().replace(hour=23, minute=59, second=59, microsecond=999999)
+        
+        birthday_orders_today = (
+            db.session.query(Order)
+            .filter(
+                Order.customer_id == customer_id,
+                Order.discount_code_id == code.discount_code_id,
+                Order.time_stamp >= today_start,
+                Order.time_stamp <= today_end
+            )
+            .all()
+        )
+        
+        if birthday_orders_today:
+            return False, "You have already used your birthday discount today. Only one birthday discount per year!", None, 0
+        
+        if not cart:
+            return False, "Your cart is empty", None, 0
+        
+        cheapest_pizza_price = min(item['price'] for item in cart.values())
+        
+        return True, f" Happy Birthday! 1 FREE cheapest pizza (worth ${cheapest_pizza_price:.2f})", discount_type, cheapest_pizza_price
+    
+    elif discount_type.name == "Loyalty Reward":
+        cart_pizza_count = sum(item['quantity'] for item in cart.values())
+        
+        total_pizzas = customer.loyalty_pizza_count + cart_pizza_count
+        
+        if total_pizzas < 10:
+            pizzas_needed = 10 - customer.loyalty_pizza_count
+            return False, f"You need {pizzas_needed} more pizza(s) to unlock the loyalty discount. You currently have {customer.loyalty_pizza_count} pizzas in your loyalty count.", None, 0
+        
+        return True, f" Loyalty Reward: {discount_type.percent}% off! (You've earned this with {customer.loyalty_pizza_count} pizzas)", discount_type, 0
+    
+    return False, "Unknown discount type", None, 0
 
 
-@main_bp.route("/menu")
-def menu():
-    pizzas = Pizza.query.all()
-    return {"pizzas": [pizza.name for pizza in pizzas]}
-
-
+@customer_bp.route('/customer/validate-discount', methods=['POST'])
+def validate_discount():
+    """AJAX endpoint to validate discount code before checkout"""
+    if 'customer_id' not in session:
+        return {'valid': False, 'message': 'Please log in first'}, 401
+    
+    discount_code = request.json.get('discount_code', '').strip().upper()
+    cart = session.get('cart', {})
+    
+    if not discount_code:
+        return {'valid': False, 'message': 'Please enter a discount code'}, 400
+    
+    if not cart:
+        return {'valid': False, 'message': 'Your cart is empty'}, 400
+    
+    total_with_vat = sum(item['price'] * item['quantity'] for item in cart.values())
+    
+    is_eligible, message, discount_type, birthday_discount_amount = check_discount_eligibility(
+        session['customer_id'],
+        discount_code,
+        cart
+    )
+    
+    if not is_eligible:
+        return {
+            'valid': False,
+            'message': message
+        }, 400
+    
+    if discount_type.name == "Birthday Discount":
+        discount_amount = birthday_discount_amount
+        discount_percent = "FREE Pizza"
+    else:
+        discount_percent = float(discount_type.percent)
+        discount_amount = total_with_vat * (discount_percent / 100)
+    
+    new_total = total_with_vat - discount_amount
+    new_subtotal = new_total / 1.09
+    new_vat = new_total - new_subtotal
+    
+    return {
+        'valid': True,
+        'message': message,
+        'discount_percent': discount_percent,
+        'discount_amount': round(discount_amount, 2),
+        'original_total': round(total_with_vat, 2),
+        'new_total': round(new_total, 2),
+        'new_subtotal': round(new_subtotal, 2),
+        'new_vat': round(new_vat, 2),
+        'savings': round(discount_amount, 2)
+    }, 200
 
 
 
@@ -663,8 +784,8 @@ def dashboard():
         'pizzas': Pizza.query.count(),
         'ingredients': Ingredient.query.count(),
         'orders': Order.query.count(),
-        'delivery_people': DeliveryPerson.query.count(),  # ✅ FIXED: Remove the hasattr check
-        'discount_codes': DiscountType.query.count()  # ✅ FIXED: Remove the hasattr check
+        'delivery_people': DeliveryPerson.query.count(),  
+        'discount_codes': DiscountType.query.count() 
     }
     
     recent_customers = Customer.query.order_by(Customer.customer_id.desc()).limit(5).all()
@@ -1085,133 +1206,3 @@ def earnings_report():
     return render_template('admin_reports_earnings.html', 
                          report_data=report_data, 
                          filter_type=filter_type)
-
-def check_discount_eligibility(customer_id, discount_code, cart):
-    """
-    Check if customer is eligible for a discount code.
-    Returns: (is_eligible: bool, message: str, discount_type: DiscountType or None, discount_amount: float)
-    """
-    if not customer_id or not discount_code:
-        return False, "Invalid request", None, 0
-    
-    code = DiscountCode.query.filter_by(code=discount_code.upper().strip()).first()
-    if not code:
-        return False, f"Discount code '{discount_code}' does not exist", None, 0
-    
-    discount_type = DiscountType.query.get(code.discount_type_id)
-    if not discount_type:
-        return False, "Discount type configuration error", None, 0
-    
-    customer = Customer.query.get(customer_id)
-    if not customer:
-        return False, "Customer not found", None, 0
-    
-    if discount_type.name == "One-Time Promo":
-        orders_with_this_code = (
-            db.session.query(Order)
-            .filter(
-                Order.customer_id == customer_id,
-                Order.discount_code_id == code.discount_code_id
-            )
-            .all() 
-        )
-        
-        if orders_with_this_code:
-            order_count = len(orders_with_this_code)
-            return False, f"This one-time discount code has already been used by you ({order_count} time(s)). Each customer can only use WELCOME20 once.", None, 0
-        
-        return True, f"One-Time Promo: {discount_type.percent}% off your order", discount_type, 0
-    
-    elif discount_type.name == "Birthday Discount":
-        if not customer.is_birthday_today():
-            return False, f"Birthday discount only works on your birthday ({customer.dob.strftime('%B %d')}). Come back then!", None, 0
-        
-        today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-        today_end = datetime.now().replace(hour=23, minute=59, second=59, microsecond=999999)
-        
-        birthday_orders_today = (
-            db.session.query(Order)
-            .filter(
-                Order.customer_id == customer_id,
-                Order.discount_code_id == code.discount_code_id,
-                Order.time_stamp >= today_start,
-                Order.time_stamp <= today_end
-            )
-            .all()
-        )
-        
-        if birthday_orders_today:
-            return False, "You have already used your birthday discount today. Only one birthday discount per year!", None, 0
-        
-        if not cart:
-            return False, "Your cart is empty", None, 0
-        
-        cheapest_pizza_price = min(item['price'] for item in cart.values())
-        
-        return True, f" Happy Birthday! 1 FREE cheapest pizza (worth ${cheapest_pizza_price:.2f})", discount_type, cheapest_pizza_price
-    
-    elif discount_type.name == "Loyalty Reward":
-        cart_pizza_count = sum(item['quantity'] for item in cart.values())
-        
-        total_pizzas = customer.loyalty_pizza_count + cart_pizza_count
-        
-        if total_pizzas < 10:
-            pizzas_needed = 10 - customer.loyalty_pizza_count
-            return False, f"You need {pizzas_needed} more pizza(s) to unlock the loyalty discount. You currently have {customer.loyalty_pizza_count} pizzas in your loyalty count.", None, 0
-        
-        return True, f" Loyalty Reward: {discount_type.percent}% off! (You've earned this with {customer.loyalty_pizza_count} pizzas)", discount_type, 0
-    
-    return False, "Unknown discount type", None, 0
-
-
-@customer_bp.route('/customer/validate-discount', methods=['POST'])
-def validate_discount():
-    """AJAX endpoint to validate discount code before checkout"""
-    if 'customer_id' not in session:
-        return {'valid': False, 'message': 'Please log in first'}, 401
-    
-    discount_code = request.json.get('discount_code', '').strip().upper()
-    cart = session.get('cart', {})
-    
-    if not discount_code:
-        return {'valid': False, 'message': 'Please enter a discount code'}, 400
-    
-    if not cart:
-        return {'valid': False, 'message': 'Your cart is empty'}, 400
-    
-    total_with_vat = sum(item['price'] * item['quantity'] for item in cart.values())
-    
-    is_eligible, message, discount_type, birthday_discount_amount = check_discount_eligibility(
-        session['customer_id'],
-        discount_code,
-        cart
-    )
-    
-    if not is_eligible:
-        return {
-            'valid': False,
-            'message': message
-        }, 400
-    
-    if discount_type.name == "Birthday Discount":
-        discount_amount = birthday_discount_amount
-        discount_percent = "FREE Pizza"
-    else:
-        discount_percent = float(discount_type.percent)
-        discount_amount = total_with_vat * (discount_percent / 100)
-    
-    new_total = total_with_vat - discount_amount
-    new_subtotal = new_total / 1.09
-    new_vat = new_total - new_subtotal
-    
-    return {
-        'valid': True,
-        'message': message,
-        'discount_percent': discount_percent,
-        'discount_amount': round(discount_amount, 2),
-        'original_total': round(total_with_vat, 2),
-        'new_total': round(new_total, 2),
-        'new_subtotal': round(new_subtotal, 2),
-        'new_vat': round(new_vat, 2),
-        'savings': round(discount_amount, 2)
-    }, 200
