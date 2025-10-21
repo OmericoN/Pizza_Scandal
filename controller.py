@@ -1,6 +1,6 @@
 from flask import Blueprint, app, render_template, request, redirect, url_for, flash, session
 from models import db, Customer, Order, OrderItem, DeliveryPerson, DiscountCode, DiscountType, Admin, Pizza, pizza_ingredient, Ingredient, DeliveryPersonPostalRange
-from werkzeug.security import check_password_hash
+from werkzeug.security import check_password_hash, generate_password_hash
 from sqlalchemy.orm import joinedload
 from sqlalchemy import func
 import os
@@ -75,11 +75,12 @@ def register():
         telephone = request.form.get('telephone')
         address = request.form.get('address')
         postal_code = request.form.get('postal_code')
-        gender = request.form.get('gender')  
+        gender = request.form.get('gender')
+        dob = request.form.get('dob')  
         password = request.form.get('password')
         confirm_password = request.form.get('confirm_password')
         
-        if not all([first_name, last_name, email, telephone, address, postal_code, gender, password, confirm_password]):
+        if not all([first_name, last_name, email, telephone, address, postal_code, gender, dob, password, confirm_password]):
             flash('All fields are required.', 'error')
             return render_template("customer_register.html")
         
@@ -103,9 +104,8 @@ def register():
             flash('Please enter a valid postal code (numbers only).', 'error')
             return render_template("customer_register.html")
         
-        # NEW: Validate and parse date of birth
+        # Validate and parse date of birth
         try:
-            from datetime import datetime, date
             dob_date = datetime.strptime(dob, '%Y-%m-%d').date()
             
             # Check if customer is at least 13 years old
@@ -138,7 +138,6 @@ def register():
             return render_template("customer_register.html")
         
         try:
-            from werkzeug.security import generate_password_hash
             peppered_password = password + PEPPER
             password_hash = generate_password_hash(peppered_password)
             
@@ -149,7 +148,8 @@ def register():
                 telephone=telephone,
                 address=address,
                 postal_code=postal_code_int,
-                gender=gender_int,  
+                gender=gender_int,
+                dob=dob_date,
                 password_hash=password_hash
             )
             
@@ -293,14 +293,12 @@ def checkout():
     
     cart_items = []
     total_with_vat = 0
-    total_pizza_count = 0
+    total_pizza_count = 0  # ✅ Initialize
     
     for pizza_id, item in cart.items():
         subtotal = item['price'] * item['quantity']
         total_with_vat += subtotal
-        
-        item_subtotal_without_vat = subtotal / 1.09  
-        item_vat = subtotal - item_subtotal_without_vat
+        total_pizza_count += item['quantity']  # ✅ COUNT PIZZAS HERE
         
         cart_items.append({
             'pizza_id': pizza_id,
@@ -321,43 +319,115 @@ def checkout():
         dp = _choose_delivery_person_for_zip(customer.postal_code if customer else None)
         
         try:
+            # Initialize discount variables
+            final_total = total_with_vat
+            applied_discount_code_id = None
+            discount_was_applied = False
+            pizzas_added_to_loyalty = False  # ✅ Track if pizzas were added
+            
+            # === DISCOUNT CODE VALIDATION ===
+            if discount_code_input:
+                is_eligible, message, discount_type, birthday_discount_amount = check_discount_eligibility(
+                    session['customer_id'], 
+                    discount_code_input, 
+                    cart
+                )
+                
+                if is_eligible and discount_type:
+                    # Calculate discount based on type
+                    if discount_type.name == "Birthday Discount":
+                        discount_amount = float(birthday_discount_amount)
+                    else:
+                        discount_percent = float(discount_type.percent)
+                        discount_amount = total_with_vat * (discount_percent / 100)
+                    
+                    final_total = total_with_vat - discount_amount
+                    
+                    # Get the discount code ID from database
+                    code_obj = DiscountCode.query.filter_by(code=discount_code_input).first()
+                    if code_obj:
+                        applied_discount_code_id = code_obj.discount_code_id
+                        discount_was_applied = True
+                        flash(f"✅ {message} - You saved ${discount_amount:.2f}!", "success")
+                    else:
+                        flash("Error: Could not apply discount code", "error")
+                    
+                    # ✅ FIXED: Handle loyalty discount pizza count
+                    if discount_type.name == "Loyalty Reward":
+                        # Customer used 10 pizzas for discount
+                        pizzas_used_for_discount = 10
+                        remaining_pizzas = total_pizza_count - pizzas_used_for_discount
+                        
+                        if remaining_pizzas > 0:
+                            # Reset to 0 and add remaining pizzas from this order
+                            customer.loyalty_pizza_count = remaining_pizzas
+                        else:
+                            # Reset to 0
+                            customer.loyalty_pizza_count = 0
+                        
+                        pizzas_added_to_loyalty = True
+                        print(f"✅ Loyalty discount used. Pizza count reset to {customer.loyalty_pizza_count}")
+                    else:
+                        # Other discounts (WELCOME20, Birthday): add all pizzas
+                        customer.add_pizzas_to_count(total_pizza_count)
+                        pizzas_added_to_loyalty = True
+                        print(f"✅ Added {total_pizza_count} pizzas. New loyalty count: {customer.loyalty_pizza_count}")
+                else:
+                    # Discount code invalid - still add pizzas to loyalty
+                    flash(f"❌ {message}", "error")
+                    customer.add_pizzas_to_count(total_pizza_count)
+                    pizzas_added_to_loyalty = True
+                    print(f"✅ Discount failed. Added {total_pizza_count} pizzas. New count: {customer.loyalty_pizza_count}")
+            else:
+                # No discount code - add pizzas to loyalty
+                customer.add_pizzas_to_count(total_pizza_count)
+                pizzas_added_to_loyalty = True
+                print(f"✅ No discount code. Added {total_pizza_count} pizzas. New count: {customer.loyalty_pizza_count}")
+            
+            # ✅ Safety net: Ensure pizzas are always counted
+            if not pizzas_added_to_loyalty:
+                customer.add_pizzas_to_count(total_pizza_count)
+                print(f"⚠️ Safety net triggered. Added {total_pizza_count} pizzas. Count: {customer.loyalty_pizza_count}")
+            
+            # Create the order
             new_order = Order(
                 customer_id=session['customer_id'],
                 delivery_person_id=(dp.delivery_person_id if dp else None),
-                total_price=total_with_vat,
+                total_price=final_total,
+                discount_code_id=applied_discount_code_id,
                 time_stamp=datetime.now(timezone.utc)
             )
             
             db.session.add(new_order)
-            db.session.flush()  
+            db.session.flush()
             
+            print(f"✅ Order created: order_id={new_order.order_id}, discount_code_id={new_order.discount_code_id}, total={new_order.total_price}")
+            
+            # Create order items
             for pizza_id, item in cart.items():
                 order_item = OrderItem(
                     order_id=new_order.order_id,
                     pizza_id=int(pizza_id),
                     quantity=item['quantity'],
-                    unit_price=item['price']  
+                    unit_price=item['price']
                 )
                 db.session.add(order_item)
             
-            discount_code = request.form.get('discount_code') 
-            if discount_code:
-                code = DiscountCode.query.filter_by(code=discount_code).first()
-                if code:
-                    discount_type = DiscountType.query.get(code.discount_type_id)
-                    if discount_type:
-                        discount_amount = total_with_vat * (discount_type.percent / 100)
-                        new_order.total_price = total_with_vat - discount_amount
-                        flash(f"Applied {discount_type.name} discount: ${discount_amount:.2f}", "success")
-                else:
-                    flash("Invalid discount code", "error")
-            
+            # Update delivery person
             if dp:
                 dp.last_assigned_at = datetime.now(timezone.utc)
                 db.session.add(dp)
-
-            db.session.commit() 
             
+            # ✅ Commit everything together (including loyalty count update)
+            db.session.commit()
+            
+            # Verify
+            saved_order = Order.query.get(new_order.order_id)
+            refreshed_customer = Customer.query.get(customer.customer_id)
+            print(f"✅ Verified: discount_code_id={saved_order.discount_code_id}")
+            print(f"✅ Final loyalty pizza count: {refreshed_customer.loyalty_pizza_count}")
+            
+            # Clear cart
             session.pop('cart', None)
             
             flash('🎉 Order placed successfully!', 'success')
@@ -366,6 +436,8 @@ def checkout():
         except Exception as e:
             db.session.rollback()
             print(f"❌ Error processing order: {str(e)}")
+            import traceback
+            traceback.print_exc()
             flash(f'Error processing order: {str(e)}', 'error')
             return redirect(url_for('customer.checkout'))
     
