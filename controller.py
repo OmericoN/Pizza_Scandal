@@ -303,12 +303,12 @@ def checkout():
     # Calculate cart total and VAT
     cart_items = []
     total_with_vat = 0
-    total_pizza_count = 0  # Track total pizzas in cart
+    total_pizza_count = 0
     
     for pizza_id, item in cart.items():
         subtotal = item['price'] * item['quantity']
         total_with_vat += subtotal
-        total_pizza_count += item['quantity']  # Add pizza count
+        total_pizza_count += item['quantity']
         
         cart_items.append({
             'pizza_id': pizza_id,
@@ -326,64 +326,66 @@ def checkout():
     if request.method == 'POST':
         delivery_address = request.form.get('delivery_address', customer.address)
         notes = request.form.get('notes', '')
-        discount_code_input = request.form.get('discount_code', '').strip()
+        discount_code_input = request.form.get('discount_code', '').strip().upper()
         
         # Choose delivery person
         dp = _choose_delivery_person_for_zip(customer.postal_code if customer else None)
         
         try:
+            # Initialize discount variables
             final_total = total_with_vat
             applied_discount_code_id = None
+            discount_was_applied = False
             
-            # === DISCOUNT CODE VALIDATION ===
+            # === DISCOUNT CODE VALIDATION (REWRITTEN) ===
             if discount_code_input:
                 is_eligible, message, discount_type, birthday_discount_amount = check_discount_eligibility(
-                    session['customer_id'], 
-                    discount_code_input, 
+                    session['customer_id'],
+                    discount_code_input,
                     cart
                 )
-                
                 if is_eligible and discount_type:
-                    # Calculate discount based on type
                     if discount_type.name == "Birthday Discount":
-                        # Use the fixed amount (cheapest pizza price)
                         discount_amount = birthday_discount_amount
                     else:
-                        # Percentage-based discount
                         discount_amount = total_with_vat * (float(discount_type.percent) / 100)
-                    
+
                     final_total = total_with_vat - discount_amount
+
+                    code_obj = DiscountCode.query.filter_by(code=discount_code_input).first()
+                    if code_obj:
+                        applied_discount_code_id = code_obj.discount_code_id
+                        flash(f"{message}: ${discount_amount:.2f} saved!", "success")
+                    else:
+                        flash("Error: Could not apply discount code", "error")
                     
-                    # Get the discount code ID for storing in order
-                    code = DiscountCode.query.filter_by(code=discount_code_input).first()
-                    applied_discount_code_id = code.discount_code_id
-                    
-                    flash(f"{message}: ${discount_amount:.2f} saved!", "success")
-                    
-                    # === LOYALTY DISCOUNT: Deduct 10 pizzas ===
+                    # Handle loyalty discount pizza count
                     if discount_type.name == "Loyalty Reward":
                         customer.add_pizzas_to_count(total_pizza_count - 10)
                     else:
-                        # For other discounts, just add the pizzas normally
                         customer.add_pizzas_to_count(total_pizza_count)
                 else:
-                    # Discount not eligible
-                    flash(message, "error")
-                    customer.add_pizzas_to_count(total_pizza_count)  # Add pizzas anyway
+                    # Discount not eligible - show why
+                    flash(f"❌ {message}", "error")
+                    customer.add_pizzas_to_count(total_pizza_count)
             else:
                 # No discount code provided
                 customer.add_pizzas_to_count(total_pizza_count)
             
-            # Create the order
+            # ✅ Create the order with proper discount tracking
             new_order = Order(
                 customer_id=session['customer_id'],
                 delivery_person_id=(dp.delivery_person_id if dp else None),
-                total_price=total_with_vat,
-                # store timezone-aware timestamp (UTC)
+                total_price=final_total,
+                discount_code_id=applied_discount_code_id,
                 time_stamp=datetime.now(timezone.utc)
             )
+            
             db.session.add(new_order)
-            db.session.flush()
+            db.session.flush()  # Get the order_id before commit
+            
+            # Debug logging (remove in production)
+            print(f"✅ Order created: order_id={new_order.order_id}, customer_id={new_order.customer_id}, discount_code_id={new_order.discount_code_id}, total={new_order.total_price}")
             
             # Create order items from cart
             for pizza_id, item in cart.items():
@@ -400,16 +402,22 @@ def checkout():
                 dp.last_assigned_at = datetime.now(timezone.utc)
                 db.session.add(dp)
             
+            # ✅ Commit everything together
             db.session.commit()
+            
+            # Verify the discount was saved (debug - remove in production)
+            saved_order = Order.query.get(new_order.order_id)
+            print(f"✅ Verified saved order: discount_code_id={saved_order.discount_code_id}")
             
             # Clear cart
             session.pop('cart', None)
             
-            flash('Order placed successfully!', 'success')
+            flash('🎉 Order placed successfully!', 'success')
             return redirect(url_for('customer.order_confirmation', order_id=new_order.order_id))
             
         except Exception as e:
             db.session.rollback()
+            print(f"❌ Error processing order: {str(e)}")
             flash(f'Error processing order: {str(e)}', 'error')
             return redirect(url_for('customer.checkout'))
     
@@ -1002,7 +1010,7 @@ def earnings_report():
             if not dob:
                 continue
             try:
-                age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+                age = today.year - dob.year - ((today.month, today.day) < (dob_date.month, dob_date.day))
             except Exception:
                 continue
 
@@ -1067,51 +1075,68 @@ def check_discount_eligibility(customer_id, discount_code, cart):
     Check if customer is eligible for a discount code.
     Returns: (is_eligible: bool, message: str, discount_type: DiscountType or None, discount_amount: float)
     """
+    # Validate inputs
+    if not customer_id or not discount_code:
+        return False, "Invalid request", None, 0
+    
     # Get the discount code from database
-    code = DiscountCode.query.filter_by(code=discount_code).first()
+    code = DiscountCode.query.filter_by(code=discount_code.upper().strip()).first()
     if not code:
-        return False, "Invalid discount code", None, 0
+        return False, f"Discount code '{discount_code}' does not exist", None, 0
     
     # Get discount type
     discount_type = DiscountType.query.get(code.discount_type_id)
     if not discount_type:
-        return False, "Discount type not found", None, 0
+        return False, "Discount type configuration error", None, 0
     
+    # Get customer
     customer = Customer.query.get(customer_id)
     if not customer:
         return False, "Customer not found", None, 0
     
-    # === ONE-TIME PROMO DISCOUNT ===
+    # === ONE-TIME PROMO DISCOUNT (REWRITTEN) ===
     if discount_type.name == "One-Time Promo":
-        # Check if customer has already used this code
-        previous_order = Order.query.filter_by(
-            customer_id=customer_id,
-            discount_code_id=code.discount_code_id
-        ).first()
+        # Query all orders by this customer that used this specific discount code
+        orders_with_this_code = (
+            db.session.query(Order)
+            .filter(
+                Order.customer_id == customer_id,
+                Order.discount_code_id == code.discount_code_id
+            )
+            .all()  # Get all to see count
+        )
         
-        if previous_order:
-            return False, "You have already used this one-time discount code", None, 0
-        return True, f"One-Time Promo discount applied: {discount_type.percent}% off", discount_type, 0
+        # If customer has ANY order with this code, reject
+        if orders_with_this_code:
+            order_count = len(orders_with_this_code)
+            return False, f"This one-time discount code has already been used by you ({order_count} time(s)). Each customer can only use WELCOME20 once.", None, 0
+        
+        # Customer has never used this code before - allow it
+        return True, f"One-Time Promo: {discount_type.percent}% off your order", discount_type, 0
     
     # === BIRTHDAY DISCOUNT - FREE CHEAPEST PIZZA ===
     elif discount_type.name == "Birthday Discount":
         # Check if today is customer's birthday
         if not customer.is_birthday_today():
-            return False, "Birthday discount only valid on your birthday", None, 0
+            return False, f"Birthday discount only works on your birthday ({customer.dob.strftime('%B %d')}). Come back then!", None, 0
         
-        # Check if customer already used birthday discount today
+        # Check if customer already used birthday discount TODAY
         today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
         today_end = datetime.now().replace(hour=23, minute=59, second=59, microsecond=999999)
         
-        birthday_order_today = Order.query.filter(
-            Order.customer_id == customer_id,
-            Order.discount_code_id == code.discount_code_id,
-            Order.time_stamp >= today_start,
-            Order.time_stamp <= today_end
-        ).first()
+        birthday_orders_today = (
+            db.session.query(Order)
+            .filter(
+                Order.customer_id == customer_id,
+                Order.discount_code_id == code.discount_code_id,
+                Order.time_stamp >= today_start,
+                Order.time_stamp <= today_end
+            )
+            .all()
+        )
         
-        if birthday_order_today:
-            return False, "You have already used your birthday discount today", None, 0
+        if birthday_orders_today:
+            return False, "You have already used your birthday discount today. Only one birthday discount per year!", None, 0
         
         # Find the cheapest pizza in the cart (price of 1 unit)
         if not cart:
@@ -1119,7 +1144,7 @@ def check_discount_eligibility(customer_id, discount_code, cart):
         
         cheapest_pizza_price = min(item['price'] for item in cart.values())
         
-        return True, f"Happy Birthday! 1 FREE cheapest pizza (${cheapest_pizza_price:.2f})", discount_type, cheapest_pizza_price
+        return True, f"🎂 Happy Birthday! 1 FREE cheapest pizza (worth ${cheapest_pizza_price:.2f})", discount_type, cheapest_pizza_price
     
     # === LOYALTY DISCOUNT ===
     elif discount_type.name == "Loyalty Reward":
@@ -1131,9 +1156,9 @@ def check_discount_eligibility(customer_id, discount_code, cart):
         
         if total_pizzas < 10:
             pizzas_needed = 10 - customer.loyalty_pizza_count
-            return False, f"You need {pizzas_needed} more pizzas to unlock loyalty discount", None, 0
+            return False, f"You need {pizzas_needed} more pizza(s) to unlock the loyalty discount. You currently have {customer.loyalty_pizza_count} pizzas in your loyalty count.", None, 0
         
-        return True, f"Loyalty discount applied: {discount_type.percent}% off", discount_type, 0
+        return True, f"🎉 Loyalty Reward: {discount_type.percent}% off! (You've earned this with {customer.loyalty_pizza_count} pizzas)", discount_type, 0
     
     return False, "Unknown discount type", None, 0
 
@@ -1147,7 +1172,7 @@ def validate_discount():
     if 'customer_id' not in session:
         return {'valid': False, 'message': 'Please log in first'}, 401
     
-    discount_code = request.json.get('discount_code', '').strip()
+    discount_code = request.json.get('discount_code', '').strip().upper()
     cart = session.get('cart', {})
     
     if not discount_code:
@@ -1158,8 +1183,6 @@ def validate_discount():
     
     # Calculate current cart total
     total_with_vat = sum(item['price'] * item['quantity'] for item in cart.values())
-    subtotal_without_vat = total_with_vat / 1.09
-    vat_amount = total_with_vat - subtotal_without_vat
     
     # Check discount eligibility
     is_eligible, message, discount_type, birthday_discount_amount = check_discount_eligibility(
@@ -1176,11 +1199,9 @@ def validate_discount():
     
     # Calculate discount amount based on type
     if discount_type.name == "Birthday Discount":
-        # Fixed amount (cheapest pizza)
         discount_amount = birthday_discount_amount
-        discount_percent = 0  # Not percentage-based
+        discount_percent = "FREE Pizza"
     else:
-        # Percentage-based discount
         discount_percent = float(discount_type.percent)
         discount_amount = total_with_vat * (discount_percent / 100)
     
@@ -1191,7 +1212,7 @@ def validate_discount():
     return {
         'valid': True,
         'message': message,
-        'discount_percent': discount_percent if discount_type.name != "Birthday Discount" else "Fixed Amount",
+        'discount_percent': discount_percent,
         'discount_amount': round(discount_amount, 2),
         'original_total': round(total_with_vat, 2),
         'new_total': round(new_total, 2),

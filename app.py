@@ -29,7 +29,7 @@ def create_app():
         return ("<p>Pizzeria app. Supabase connection is working</p>")
     
     return app
-app = create_app()
+
 if __name__ == "__main__":
     app = create_app()
     app.run(debug=True)
