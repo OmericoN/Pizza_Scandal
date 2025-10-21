@@ -321,12 +321,12 @@ def checkout():
     
     cart_items = []
     total_with_vat = 0
-    total_pizza_count = 0  # ✅ Initialize
+    total_pizza_count = 0 
     
     for pizza_id, item in cart.items():
         subtotal = item['price'] * item['quantity']
         total_with_vat += subtotal
-        total_pizza_count += item['quantity']  # ✅ COUNT PIZZAS HERE
+        total_pizza_count += item['quantity']  
         
         cart_items.append({
             'pizza_id': pizza_id,
@@ -347,13 +347,12 @@ def checkout():
         dp = _choose_delivery_person_for_zip(customer.postal_code if customer else None)
         
         try:
-            # Initialize discount variables
+            
             final_total = total_with_vat
             applied_discount_code_id = None
             discount_was_applied = False
-            pizzas_added_to_loyalty = False  # ✅ Track if pizzas were added
+            pizzas_added_to_loyalty = False 
             
-            # === DISCOUNT CODE VALIDATION ===
             if discount_code_input:
                 is_eligible, message, discount_type, birthday_discount_amount = check_discount_eligibility(
                     session['customer_id'], 
@@ -362,7 +361,6 @@ def checkout():
                 )
                 
                 if is_eligible and discount_type:
-                    # Calculate discount based on type
                     if discount_type.name == "Birthday Discount":
                         discount_amount = float(birthday_discount_amount)
                     else:
@@ -371,51 +369,42 @@ def checkout():
                     
                     final_total = total_with_vat - discount_amount
                     
-                    # Get the discount code ID from database
                     code_obj = DiscountCode.query.filter_by(code=discount_code_input).first()
                     if code_obj:
                         applied_discount_code_id = code_obj.discount_code_id
                         discount_was_applied = True
-                        flash(f"✅ {message} - You saved ${discount_amount:.2f}!", "success")
+                        flash(f" {message} - You saved ${discount_amount:.2f}!", "success")
                     else:
                         flash("Error: Could not apply discount code", "error")
                     
-                    # ✅ FIXED: Handle loyalty discount pizza count
                     if discount_type.name == "Loyalty Reward":
-                        # Customer used 10 pizzas for discount
                         pizzas_used_for_discount = 10
                         remaining_pizzas = total_pizza_count - pizzas_used_for_discount
                         
                         if remaining_pizzas > 0:
-                            # Reset to 0 and add remaining pizzas from this order
                             customer.loyalty_pizza_count = remaining_pizzas
                         else:
-                            # Reset to 0
                             customer.loyalty_pizza_count = 0
                         
                         pizzas_added_to_loyalty = True
-                        print(f"✅ Loyalty discount used. Pizza count reset to {customer.loyalty_pizza_count}")
+                        print(f"Loyalty discount used. Pizza count reset to {customer.loyalty_pizza_count}")
                     else:
-                        # Other discounts (WELCOME20, Birthday): add all pizzas
                         customer.add_pizzas_to_count(total_pizza_count)
                         pizzas_added_to_loyalty = True
-                        print(f"✅ Added {total_pizza_count} pizzas. New loyalty count: {customer.loyalty_pizza_count}")
+                        print(f"Added {total_pizza_count} pizzas. New loyalty count: {customer.loyalty_pizza_count}")
                 else:
-                    # Discount code invalid - still add pizzas to loyalty
-                    flash(f"❌ {message}", "error")
+                    flash(f"{message}", "error")
                     customer.add_pizzas_to_count(total_pizza_count)
                     pizzas_added_to_loyalty = True
-                    print(f"✅ Discount failed. Added {total_pizza_count} pizzas. New count: {customer.loyalty_pizza_count}")
+                    print(f"Discount failed. Added {total_pizza_count} pizzas. New count: {customer.loyalty_pizza_count}")
             else:
-                # No discount code - add pizzas to loyalty
                 customer.add_pizzas_to_count(total_pizza_count)
                 pizzas_added_to_loyalty = True
-                print(f"✅ No discount code. Added {total_pizza_count} pizzas. New count: {customer.loyalty_pizza_count}")
+                print(f" No discount code. Added {total_pizza_count} pizzas. New count: {customer.loyalty_pizza_count}")
             
-            # ✅ Safety net: Ensure pizzas are always counted
             if not pizzas_added_to_loyalty:
                 customer.add_pizzas_to_count(total_pizza_count)
-                print(f"⚠️ Safety net triggered. Added {total_pizza_count} pizzas. Count: {customer.loyalty_pizza_count}")
+                print(f" Safety net triggered. Added {total_pizza_count} pizzas. Count: {customer.loyalty_pizza_count}")
             
             # Create the order
             new_order = Order(
@@ -429,7 +418,7 @@ def checkout():
             db.session.add(new_order)
             db.session.flush()
             
-            print(f"✅ Order created: order_id={new_order.order_id}, discount_code_id={new_order.discount_code_id}, total={new_order.total_price}")
+            print(f"Order created: order_id={new_order.order_id}, discount_code_id={new_order.discount_code_id}, total={new_order.total_price}")
             
             # Create order items
             for pizza_id, item in cart.items():
@@ -441,29 +430,27 @@ def checkout():
                 )
                 db.session.add(order_item)
             
-            # Update delivery person
             if dp:
                 dp.last_assigned_at = datetime.now(timezone.utc)
                 db.session.add(dp)
             
-            # ✅ Commit everything together (including loyalty count update)
             db.session.commit()
             
             # Verify
             saved_order = Order.query.get(new_order.order_id)
             refreshed_customer = Customer.query.get(customer.customer_id)
-            print(f"✅ Verified: discount_code_id={saved_order.discount_code_id}")
-            print(f"✅ Final loyalty pizza count: {refreshed_customer.loyalty_pizza_count}")
+            print(f"Verified: discount_code_id={saved_order.discount_code_id}")
+            print(f"Final loyalty pizza count: {refreshed_customer.loyalty_pizza_count}")
             
             # Clear cart
             session.pop('cart', None)
             
-            flash('🎉 Order placed successfully!', 'success')
+            flash('Order placed successfully!', 'success')
             return redirect(url_for('customer.order_confirmation', order_id=new_order.order_id))
             
         except Exception as e:
             db.session.rollback()
-            print(f"❌ Error processing order: {str(e)}")
+            print(f"Error processing order: {str(e)}")
             import traceback
             traceback.print_exc()
             flash(f'Error processing order: {str(e)}', 'error')
@@ -1161,7 +1148,7 @@ def check_discount_eligibility(customer_id, discount_code, cart):
         
         cheapest_pizza_price = min(item['price'] for item in cart.values())
         
-        return True, f"🎂 Happy Birthday! 1 FREE cheapest pizza (worth ${cheapest_pizza_price:.2f})", discount_type, cheapest_pizza_price
+        return True, f" Happy Birthday! 1 FREE cheapest pizza (worth ${cheapest_pizza_price:.2f})", discount_type, cheapest_pizza_price
     
     elif discount_type.name == "Loyalty Reward":
         cart_pizza_count = sum(item['quantity'] for item in cart.values())
@@ -1172,7 +1159,7 @@ def check_discount_eligibility(customer_id, discount_code, cart):
             pizzas_needed = 10 - customer.loyalty_pizza_count
             return False, f"You need {pizzas_needed} more pizza(s) to unlock the loyalty discount. You currently have {customer.loyalty_pizza_count} pizzas in your loyalty count.", None, 0
         
-        return True, f"🎉 Loyalty Reward: {discount_type.percent}% off! (You've earned this with {customer.loyalty_pizza_count} pizzas)", discount_type, 0
+        return True, f" Loyalty Reward: {discount_type.percent}% off! (You've earned this with {customer.loyalty_pizza_count} pizzas)", discount_type, 0
     
     return False, "Unknown discount type", None, 0
 
