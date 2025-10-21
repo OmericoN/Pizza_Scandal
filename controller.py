@@ -32,6 +32,9 @@ def verify_password_with_pepper(password, password_hash):
 This is a helper method to assign delivery persons based on the postal code 
 '''
 def _choose_delivery_person_for_zip(postal_code):
+    """
+    This is a helper method to assign delivery persons based on the postal code 
+    """
     try:
         pc = int(str(postal_code).strip())
     except (TypeError, ValueError):
@@ -39,27 +42,52 @@ def _choose_delivery_person_for_zip(postal_code):
 
     cooldown_threshold = datetime.now(timezone.utc) - timedelta(minutes=30)
 
+    # First, try to find a delivery person for the specific postal code
     if pc is not None:
         dp = (DeliveryPerson.query
               .join(DeliveryPersonPostalRange,
                     DeliveryPersonPostalRange.delivery_person_id == DeliveryPerson.delivery_person_id)
-              .filter(DeliveryPersonPostalRange.start_zip <= pc,
-                      DeliveryPersonPostalRange.end_zip >= pc)
+              .filter(
+                  DeliveryPersonPostalRange.start_zip <= pc,
+                  DeliveryPersonPostalRange.end_zip >= pc
+              )
               .filter(
                   (DeliveryPerson.last_assigned_at.is_(None)) |
                   (DeliveryPerson.last_assigned_at <= cooldown_threshold)
-              )  
+              )
               .order_by(func.random())
               .first())
+        
         if dp:
+            print(f"✅ Found delivery person {dp.name} for postal code {pc}")
             return dp
-    return (DeliveryPerson.query
-            .filter(
-                (DeliveryPerson.last_assigned_at.is_(None)) |
-                (DeliveryPerson.last_assigned_at <= cooldown_threshold)
-            )
-            .order_by(func.random())
-            .first())
+        else:
+            print(f"⚠️ No delivery person found for postal code {pc} (checking cooldown)")
+    
+    # If no delivery person found for postal code, assign ANY available delivery person
+    dp = (DeliveryPerson.query
+          .filter(
+              (DeliveryPerson.last_assigned_at.is_(None)) |
+              (DeliveryPerson.last_assigned_at <= cooldown_threshold)
+          )
+          .order_by(func.random())
+          .first())
+    
+    if dp:
+        print(f"✅ Assigned fallback delivery person: {dp.name}")
+        return dp
+    
+    # If all delivery persons are on cooldown, assign one anyway (oldest assignment)
+    dp = (DeliveryPerson.query
+          .order_by(DeliveryPerson.last_assigned_at.asc().nullsfirst())
+          .first())
+    
+    if dp:
+        print(f"⚠️ All delivery persons busy - assigned {dp.name} (cooldown override)")
+        return dp
+    
+    print("❌ No delivery persons found in database!")
+    return None
 
 #-------------------------------
 
@@ -648,8 +676,8 @@ def dashboard():
         'pizzas': Pizza.query.count(),
         'ingredients': Ingredient.query.count(),
         'orders': Order.query.count(),
-        'delivery_people': DeliveryPerson.query.count() if hasattr(globals(), 'DeliveryPerson') else 0,
-        'discount_codes': DiscountType.query.count() if hasattr(globals(), 'DiscountType') else 0
+        'delivery_people': DeliveryPerson.query.count(),  # ✅ FIXED: Remove the hasattr check
+        'discount_codes': DiscountType.query.count()  # ✅ FIXED: Remove the hasattr check
     }
     
     recent_customers = Customer.query.order_by(Customer.customer_id.desc()).limit(5).all()
