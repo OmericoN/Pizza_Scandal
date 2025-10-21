@@ -46,7 +46,6 @@ class Customer(db.Model):
             return False
         
         today = date.today()
-        # Fix: Change self.dob == today.month to self.dob.month == today.month
         return (self.dob.month == today.month and 
                 self.dob.day == today.day)
     
@@ -189,13 +188,11 @@ class Admin(db.Model):
     username = db.Column(db.String(50), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
     def set_password(self, password):
-        # Add pepper to password before hashing
         pepper = os.environ.get('PASSWORD_PEPPER', 'default-pepper-change-in-production')
         peppered_password = password + pepper
         self.password_hash = generate_password_hash(peppered_password)
 
     def check_password(self, password):
-        # Add pepper to password before checking
         pepper = os.environ.get('PASSWORD_PEPPER', 'default-pepper-change-in-production')
         peppered_password = password + pepper
         return check_password_hash(self.password_hash, peppered_password)
@@ -233,13 +230,11 @@ def seed_data():
             db.session.add(dt)
 
     if DiscountCode.query.count() == 0:
-        # Get the discount types we just created
         birthday_type = DiscountType.query.filter_by(name="Birthday Discount").first()
         onetime_type = DiscountType.query.filter_by(name="One-Time Promo").first()
         loyalty_type = DiscountType.query.filter_by(name="Loyalty Reward").first()
         
         discount_codes = [
-            # Birthday discount code (automatic, no manual code needed, but we create one for system use)
             DiscountCode(
                 code="BDAY15",
                 discount_type_id=birthday_type.discount_type_id)
