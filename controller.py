@@ -4,7 +4,7 @@ from werkzeug.security import check_password_hash
 from sqlalchemy.orm import joinedload
 from sqlalchemy import func
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, date
 from sqlalchemy.orm import joinedload
 from zoneinfo import ZoneInfo
 
@@ -315,7 +315,8 @@ def checkout():
                 customer_id=session['customer_id'],
                 delivery_person_id=(dp.delivery_person_id if dp else None),
                 total_price=total_with_vat,
-                time_stamp=datetime.now()
+                # store timezone-aware timestamp (UTC)
+                time_stamp=datetime.now(timezone.utc)
             )
             db.session.add(new_order)
             db.session.flush()  # Get order ID
@@ -833,9 +834,6 @@ def undelivered_orders():
         customer = Customer.query.get(order.customer_id)
         delivery_person = DeliveryPerson.query.get(order.delivery_person_id) if order.delivery_person_id else None
         
-        elapsed = datetime.now(ZoneInfo("Europe/Brussels")) - order.time_stamp
-        minutes_waiting = int(elapsed.total_seconds() / 60)
-        
         report_data.append({
             'order_id': order.order_id,
             'customer_name': f"{customer.first_name} {customer.last_name}",
@@ -843,7 +841,6 @@ def undelivered_orders():
             'customer_postal_code': customer.postal_code,
             'status': order.get_status(),
             'order_time': order.time_stamp,
-            'minutes_waiting': minutes_waiting,
             'delivery_person': delivery_person.name if delivery_person else 'Not assigned',
             'total': float(order.total_price)
         })
@@ -923,8 +920,62 @@ def earnings_report():
     
     # ===== BY AGE GROUP - SKIP FOR NOW (no date_of_birth yet) =====
     elif filter_type == 'age':
-        flash('Age-based reporting coming soon (waiting for date_of_birth field)', 'info')
+        # Age-based earnings (uses Customer.dob)
+        from datetime import date as _date
+
+        customers_with_orders = (
+            db.session.query(
+                Customer.customer_id,
+                Customer.dob,
+                func.sum(Order.total_price).label('total_revenue'),
+                func.count(Order.order_id).label('order_count')
+            )
+            .join(Order, Order.customer_id == Customer.customer_id)
+            .filter(Customer.dob.isnot(None))
+            .group_by(Customer.customer_id, Customer.dob)
+            .all()
+        )
+
+        # Initialize age groups
+        age_groups = {
+            '18-25': {'revenue': 0.0, 'orders': 0},
+            '26-35': {'revenue': 0.0, 'orders': 0},
+            '36-50': {'revenue': 0.0, 'orders': 0},
+            '51+':   {'revenue': 0.0, 'orders': 0}
+        }
+
+        today = date.today()
+        for customer_id, dob, revenue, orders in customers_with_orders:
+            if not dob:
+                continue
+            try:
+                age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+            except Exception:
+                continue
+
+            rev = float(revenue) if revenue else 0.0
+            ords = int(orders) if orders else 0
+
+            if 18 <= age <= 25:
+                bucket = '18-25'
+            elif 26 <= age <= 35:
+                bucket = '26-35'
+            elif 36 <= age <= 50:
+                bucket = '36-50'
+            else:
+                bucket = '51+'
+
+            age_groups[bucket]['revenue'] += rev
+            age_groups[bucket]['orders'] += ords
+
         report_data = []
+        for age_range, data in age_groups.items():
+            report_data.append({
+                'category': age_range,
+                'order_count': data['orders'],
+                'total_revenue': data['revenue'],
+                'avg_order_value': (data['revenue'] / data['orders']) if data['orders'] > 0 else 0
+            })
     
     elif filter_type == 'postal_code':
         postal_earnings = (

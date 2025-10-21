@@ -35,9 +35,9 @@
             </div>
             <div class="card" style="text-align: center;">
                 <div class="text-h2" style="color: var(--warning); margin-bottom: var(--space-xs);">
-                    {{ orders|selectattr('minutes_waiting', 'gt', 30)|list|length }}
+                    {{ orders|selectattr('status','equalto','out_for_delivery')|list|length }}
                 </div>
-                <div class="text-body-small" style="color: var(--text-secondary);">Late Orders (>30 min)</div>
+                <div class="text-body-small" style="color: var(--text-secondary);">Out for Delivery</div>
             </div>
             <div class="card" style="text-align: center;">
                 <div class="text-h2" style="color: var(--info); margin-bottom: var(--space-xs);">
@@ -58,17 +58,18 @@
                                 <th style="padding: var(--space-md); text-align: left; font-weight: 600; color: var(--text-secondary); font-size: 14px;">Customer</th>
                                 <th style="padding: var(--space-md); text-align: left; font-weight: 600; color: var(--text-secondary); font-size: 14px;">Address</th>
                                 <th style="padding: var(--space-md); text-align: center; font-weight: 600; color: var(--text-secondary); font-size: 14px;">Status</th>
-                                <th style="padding: var(--space-md); text-align: center; font-weight: 600; color: var(--text-secondary); font-size: 14px;">Waiting</th>
                                 <th style="padding: var(--space-md); text-align: left; font-weight: 600; color: var(--text-secondary); font-size: 14px;">Delivery Person</th>
                                 <th style="padding: var(--space-md); text-align: right; font-weight: 600; color: var(--text-secondary); font-size: 14px;">Total</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for order in orders %}
-                                <tr style="border-bottom: 1px solid var(--border); {% if order.minutes_waiting > 30 %}background-color: rgba(231, 76, 60, 0.05);{% endif %}">
+                                <tr style="border-bottom: 1px solid var(--border);">
                                     <td style="padding: var(--space-md);">
                                         <span class="text-body" style="font-weight: 600;">#{{ order.order_id }}</span>
-                                        <div class="text-caption" style="color: var(--text-muted);">{{ order.order_time.strftime('%H:%M') }}</div>
+                                        {% if order.order_time %}
+                                            <div class="text-caption" style="color: var(--text-muted);">{{ order.order_time.strftime('%Y-%m-%d %H:%M') }}</div>
+                                        {% endif %}
                                     </td>
                                     <td style="padding: var(--space-md);">
                                         <div class="text-body">{{ order.customer_name }}</div>
@@ -84,15 +85,6 @@
                                             {% elif order.status == 'out_for_delivery' %}background-color: rgba(210, 105, 30, 0.1); color: var(--brand);
                                             {% endif %}">
                                             {{ order.status.replace('_', ' ').title() }}
-                                        </span>
-                                    </td>
-                                    <td style="padding: var(--space-md); text-align: center;">
-                                        <span class="text-body" style="font-weight: 600; 
-                                            {% if order.minutes_waiting > 30 %}color: var(--error);
-                                            {% elif order.minutes_waiting > 20 %}color: var(--warning);
-                                            {% else %}color: var(--success);
-                                            {% endif %}">
-                                            {{ order.minutes_waiting }} min
                                         </span>
                                     </td>
                                     <td style="padding: var(--space-md);">
