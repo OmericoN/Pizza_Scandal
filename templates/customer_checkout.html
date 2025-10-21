@@ -99,7 +99,35 @@
                         
                         <div class="form-group">
                             <label for="discount_code" class="form-label">Discount Code (optional):</label>
-                            <input type="text" name="discount_code" id="discount_code" class="form-input" placeholder="Enter discount code">
+                            <div class="discount-section">
+                                <div class="discount-input-group">
+                                    <input type="text" 
+                                           id="discount_code" 
+                                           name="discount_code" 
+                                           placeholder="Enter code"
+                                           class="form-control">
+                                    <button type="button" 
+                                            id="check-discount-btn" 
+                                            class="btn btn-secondary">
+                                        Check Code
+                                    </button>
+                                </div>
+                                
+                                <!-- Discount result message -->
+                                <div id="discount-message" class="mt-2" style="display: none;"></div>
+                                
+                                <!-- Updated totals after discount -->
+                                <div id="discount-breakdown" class="mt-3" style="display: none;">
+                                    <div class="discount-details">
+                                        <p><strong>Original Total:</strong> $<span id="original-total">{{ "%.2f"|format(total) }}</span></p>
+                                        <p class="text-success"><strong>Discount:</strong> -$<span id="discount-amount">0.00</span> (<span id="discount-percent">0</span>%)</p>
+                                        <hr>
+                                        <p><strong>New Subtotal:</strong> $<span id="new-subtotal">0.00</span></p>
+                                        <p><strong>VAT (9%):</strong> $<span id="new-vat">0.00</span></p>
+                                        <p class="total-highlight"><strong>New Total:</strong> $<span id="new-total">0.00</span></p>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                         
                         <div class="form-group payment-method">
@@ -121,6 +149,97 @@
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const checkBtn = document.getElementById('check-discount-btn');
+    const discountInput = document.getElementById('discount_code');
+    const messageDiv = document.getElementById('discount-message');
+    const breakdownDiv = document.getElementById('discount-breakdown');
+    
+    let isDiscountValid = false;
+    
+    checkBtn.addEventListener('click', function() {
+        const code = discountInput.value.trim();
+        
+        if (!code) {
+            showMessage('Please enter a discount code', 'error');
+            return;
+        }
+        
+        // Disable button during request
+        checkBtn.disabled = true;
+        checkBtn.textContent = 'Checking...';
+        
+        // Send AJAX request
+        fetch('/customer/validate-discount', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ discount_code: code })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.valid) {
+                // Show success message
+                showMessage(data.message, 'success');
+                
+                // Update breakdown display
+                document.getElementById('original-total').textContent = data.original_total.toFixed(2);
+                document.getElementById('discount-amount').textContent = data.discount_amount.toFixed(2);
+                document.getElementById('discount-percent').textContent = data.discount_percent;
+                document.getElementById('new-subtotal').textContent = data.new_subtotal.toFixed(2);
+                document.getElementById('new-vat').textContent = data.new_vat.toFixed(2);
+                document.getElementById('new-total').textContent = data.new_total.toFixed(2);
+                
+                breakdownDiv.style.display = 'block';
+                isDiscountValid = true;
+                
+                // Change button to "Applied"
+                checkBtn.textContent = '✓ Applied';
+                checkBtn.classList.remove('btn-secondary');
+                checkBtn.classList.add('btn-success');
+                discountInput.readOnly = true;
+            } else {
+                showMessage(data.message, 'error');
+                breakdownDiv.style.display = 'none';
+                isDiscountValid = false;
+            }
+        })
+        .catch(error => {
+            showMessage('Error validating discount code', 'error');
+            breakdownDiv.style.display = 'none';
+            isDiscountValid = false;
+        })
+        .finally(() => {
+            checkBtn.disabled = false;
+            if (!isDiscountValid) {
+                checkBtn.textContent = 'Check Code';
+            }
+        });
+    });
+    
+    // Reset discount when code changes
+    discountInput.addEventListener('input', function() {
+        if (isDiscountValid) {
+            breakdownDiv.style.display = 'none';
+            messageDiv.style.display = 'none';
+            checkBtn.textContent = 'Check Code';
+            checkBtn.classList.remove('btn-success');
+            checkBtn.classList.add('btn-secondary');
+            discountInput.readOnly = false;
+            isDiscountValid = false;
+        }
+    });
+    
+    function showMessage(message, type) {
+        messageDiv.textContent = message;
+        messageDiv.className = `alert alert-${type === 'success' ? 'success' : 'danger'}`;
+        messageDiv.style.display = 'block';
+    }
+});
+</script>
 
 <style>
     .checkout-layout {
@@ -245,6 +364,28 @@
     .info-value {
         color: var(--text-primary);
         font-size: 14px;
+    }
+
+    .discount-input-group {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 10px;
+    }
+
+    .discount-input-group input {
+        flex: 1;
+    }
+
+    .discount-details {
+        background: #f8f9fa;
+        padding: 15px;
+        border-radius: 5px;
+        border-left: 4px solid #28a745;
+    }
+
+    .total-highlight {
+        font-size: 1.2em;
+        color: #28a745;
     }
 
     @media (max-width: 768px) {

@@ -156,6 +156,19 @@
                         <small class="form-hint">This information helps us personalize your experience</small>
                     </div>
 
+                    <!-- Date of Birth (NEW) -->
+                    <div class="form-group">
+                        <label for="dob" class="form-label">Date of Birth *</label>
+                        <input 
+                            type="date" 
+                            class="form-input" 
+                            id="dob" 
+                            name="dob" 
+                            required
+                        >
+                        <small class="form-help">You must be at least 13 years old to register. Birthday discounts available!</small>
+                    </div>
+
                     <div class="form-row">
                         <div class="form-group">
                             <label for="password" class="form-label">Password *</label>
@@ -499,6 +512,16 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         e.target.value = value;
     });
+    
+    // Set max date for date of birth to today
+    const dobInput = document.getElementById('dob');
+    const today = new Date().toISOString().split('T')[0];
+    dobInput.setAttribute('max', today);
+    
+    // Set a reasonable min date (e.g., 120 years ago)
+    const minDate = new Date();
+    minDate.setFullYear(minDate.getFullYear() - 120);
+    dobInput.setAttribute('min', minDate.toISOString().split('T')[0]);
 });
 </script>
 {% endblock %}

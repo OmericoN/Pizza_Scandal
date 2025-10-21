@@ -73,12 +73,13 @@ def register():
         telephone = request.form.get('telephone')
         address = request.form.get('address')
         postal_code = request.form.get('postal_code')
-        gender = request.form.get('gender')  # Get gender from form
+        gender = request.form.get('gender')
+        dob = request.form.get('dob')  # NEW: Get date of birth
         password = request.form.get('password')
         confirm_password = request.form.get('confirm_password')
         
         # Validation
-        if not all([first_name, last_name, email, telephone, address, postal_code, gender, password, confirm_password]):
+        if not all([first_name, last_name, email, telephone, address, postal_code, gender, dob, password, confirm_password]):
             flash('All fields are required.', 'error')
             return render_template("customer_register.html")
         
@@ -102,6 +103,27 @@ def register():
                 raise ValueError
         except (ValueError, TypeError):
             flash('Please enter a valid postal code (numbers only).', 'error')
+            return render_template("customer_register.html")
+        
+        # NEW: Validate and parse date of birth
+        try:
+            from datetime import datetime, date
+            dob_date = datetime.strptime(dob, '%Y-%m-%d').date()
+            
+            # Check if customer is at least 13 years old
+            today = date.today()
+            age = today.year - dob_date.year - ((today.month, today.day) < (dob_date.month, dob_date.day))
+            
+            if age < 13:
+                flash('You must be at least 13 years old to register.', 'error')
+                return render_template("customer_register.html")
+            
+            if dob_date > today:
+                flash('Date of birth cannot be in the future.', 'error')
+                return render_template("customer_register.html")
+                
+        except ValueError:
+            flash('Please enter a valid date of birth.', 'error')
             return render_template("customer_register.html")
         
         if password != confirm_password:
@@ -129,7 +151,8 @@ def register():
                 telephone=telephone,
                 address=address,
                 postal_code=postal_code_int,
-                gender=gender_int,  # ✅ Save as integer (0, 1, or 2)
+                gender=gender_int,
+                dob=dob_date,  # NEW: Save date of birth
                 password_hash=password_hash
             )
             
@@ -280,14 +303,12 @@ def checkout():
     # Calculate cart total and VAT
     cart_items = []
     total_with_vat = 0
+    total_pizza_count = 0  # Track total pizzas in cart
     
     for pizza_id, item in cart.items():
         subtotal = item['price'] * item['quantity']
         total_with_vat += subtotal
-        
-        # Calculate item price components
-        item_subtotal_without_vat = subtotal / 1.09  # Remove VAT
-        item_vat = subtotal - item_subtotal_without_vat
+        total_pizza_count += item['quantity']  # Add pizza count
         
         cart_items.append({
             'pizza_id': pizza_id,
@@ -297,19 +318,62 @@ def checkout():
             'is_vegetarian': item['is_vegetarian']
         })
     
-    # Calculate VAT (9% of pre-tax total)
+    # Calculate VAT
     subtotal_without_vat = total_with_vat / 1.09
     vat_amount = total_with_vat - subtotal_without_vat
     
     # Process order confirmation
     if request.method == 'POST':
-        delivery_address = request.form.get('delivery_address', customer.address) # fetches Customer details
-        notes = request.form.get('notes', '') 
+        delivery_address = request.form.get('delivery_address', customer.address)
+        notes = request.form.get('notes', '')
+        discount_code_input = request.form.get('discount_code', '').strip()
         
-        # Choose delivery person by customer's postal code range (fallback to random)
+        # Choose delivery person
         dp = _choose_delivery_person_for_zip(customer.postal_code if customer else None)
         
         try:
+            final_total = total_with_vat
+            applied_discount_code_id = None
+            
+            # === DISCOUNT CODE VALIDATION ===
+            if discount_code_input:
+                is_eligible, message, discount_type, birthday_discount_amount = check_discount_eligibility(
+                    session['customer_id'], 
+                    discount_code_input, 
+                    cart
+                )
+                
+                if is_eligible and discount_type:
+                    # Calculate discount based on type
+                    if discount_type.name == "Birthday Discount":
+                        # Use the fixed amount (cheapest pizza price)
+                        discount_amount = birthday_discount_amount
+                    else:
+                        # Percentage-based discount
+                        discount_amount = total_with_vat * (float(discount_type.percent) / 100)
+                    
+                    final_total = total_with_vat - discount_amount
+                    
+                    # Get the discount code ID for storing in order
+                    code = DiscountCode.query.filter_by(code=discount_code_input).first()
+                    applied_discount_code_id = code.discount_code_id
+                    
+                    flash(f"{message}: ${discount_amount:.2f} saved!", "success")
+                    
+                    # === LOYALTY DISCOUNT: Deduct 10 pizzas ===
+                    if discount_type.name == "Loyalty Reward":
+                        customer.add_pizzas_to_count(total_pizza_count - 10)
+                    else:
+                        # For other discounts, just add the pizzas normally
+                        customer.add_pizzas_to_count(total_pizza_count)
+                else:
+                    # Discount not eligible
+                    flash(message, "error")
+                    customer.add_pizzas_to_count(total_pizza_count)  # Add pizzas anyway
+            else:
+                # No discount code provided
+                customer.add_pizzas_to_count(total_pizza_count)
+            
             # Create the order
             new_order = Order(
                 customer_id=session['customer_id'],
@@ -319,35 +383,24 @@ def checkout():
                 time_stamp=datetime.now(timezone.utc)
             )
             db.session.add(new_order)
-            db.session.flush()  # Get order ID
+            db.session.flush()
             
-            # Create order items from cart - WITH PRICE
+            # Create order items from cart
             for pizza_id, item in cart.items():
                 order_item = OrderItem(
                     order_id=new_order.order_id,
                     pizza_id=int(pizza_id),
                     quantity=item['quantity'],
-                    unit_price=item['price']  # Already includes VAT
+                    unit_price=item['price']
                 )
                 db.session.add(order_item)
             
-            discount_code = request.form.get('discount_code') #Discount field
-            if discount_code:
-                code = DiscountCode.query.filter_by(code=discount_code).first()
-                if code:
-                    discount_type = DiscountType.query.get(code.discount_type_id)
-                    if discount_type:
-                        discount_amount = total_with_vat * (discount_type.percent / 100)
-                        new_order.total_price = total_with_vat - discount_amount
-                        flash(f"Applied {discount_type.name} discount: ${discount_amount:.2f}", "success")
-                else:
-                    flash("Invalid discount code", "error")
-            
+            # Update delivery person assignment time
             if dp:
                 dp.last_assigned_at = datetime.now(timezone.utc)
                 db.session.add(dp)
-
-            db.session.commit() # transactions is only completed and is saved in database iff checkout is successful
+            
+            db.session.commit()
             
             # Clear cart
             session.pop('cart', None)
@@ -1007,3 +1060,142 @@ def earnings_report():
     return render_template('admin_reports_earnings.html', 
                          report_data=report_data, 
                          filter_type=filter_type)
+
+# Add this helper function near the top of your file, after the imports
+def check_discount_eligibility(customer_id, discount_code, cart):
+    """
+    Check if customer is eligible for a discount code.
+    Returns: (is_eligible: bool, message: str, discount_type: DiscountType or None, discount_amount: float)
+    """
+    # Get the discount code from database
+    code = DiscountCode.query.filter_by(code=discount_code).first()
+    if not code:
+        return False, "Invalid discount code", None, 0
+    
+    # Get discount type
+    discount_type = DiscountType.query.get(code.discount_type_id)
+    if not discount_type:
+        return False, "Discount type not found", None, 0
+    
+    customer = Customer.query.get(customer_id)
+    if not customer:
+        return False, "Customer not found", None, 0
+    
+    # === ONE-TIME PROMO DISCOUNT ===
+    if discount_type.name == "One-Time Promo":
+        # Check if customer has already used this code
+        previous_order = Order.query.filter_by(
+            customer_id=customer_id,
+            discount_code_id=code.discount_code_id
+        ).first()
+        
+        if previous_order:
+            return False, "You have already used this one-time discount code", None, 0
+        return True, f"One-Time Promo discount applied: {discount_type.percent}% off", discount_type, 0
+    
+    # === BIRTHDAY DISCOUNT - FREE CHEAPEST PIZZA ===
+    elif discount_type.name == "Birthday Discount":
+        # Check if today is customer's birthday
+        if not customer.is_birthday_today():
+            return False, "Birthday discount only valid on your birthday", None, 0
+        
+        # Check if customer already used birthday discount today
+        today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        today_end = datetime.now().replace(hour=23, minute=59, second=59, microsecond=999999)
+        
+        birthday_order_today = Order.query.filter(
+            Order.customer_id == customer_id,
+            Order.discount_code_id == code.discount_code_id,
+            Order.time_stamp >= today_start,
+            Order.time_stamp <= today_end
+        ).first()
+        
+        if birthday_order_today:
+            return False, "You have already used your birthday discount today", None, 0
+        
+        # Find the cheapest pizza in the cart (price of 1 unit)
+        if not cart:
+            return False, "Your cart is empty", None, 0
+        
+        cheapest_pizza_price = min(item['price'] for item in cart.values())
+        
+        return True, f"Happy Birthday! 1 FREE cheapest pizza (${cheapest_pizza_price:.2f})", discount_type, cheapest_pizza_price
+    
+    # === LOYALTY DISCOUNT ===
+    elif discount_type.name == "Loyalty Reward":
+        # Calculate total pizzas in cart
+        cart_pizza_count = sum(item['quantity'] for item in cart.values())
+        
+        # Check if customer + cart pizzas >= 10
+        total_pizzas = customer.loyalty_pizza_count + cart_pizza_count
+        
+        if total_pizzas < 10:
+            pizzas_needed = 10 - customer.loyalty_pizza_count
+            return False, f"You need {pizzas_needed} more pizzas to unlock loyalty discount", None, 0
+        
+        return True, f"Loyalty discount applied: {discount_type.percent}% off", discount_type, 0
+    
+    return False, "Unknown discount type", None, 0
+
+# Update your checkout route to use the new discount logic
+# ...existing code...
+
+# Add this new route after your checkout route
+@customer_bp.route('/customer/validate-discount', methods=['POST'])
+def validate_discount():
+    """AJAX endpoint to validate discount code before checkout"""
+    if 'customer_id' not in session:
+        return {'valid': False, 'message': 'Please log in first'}, 401
+    
+    discount_code = request.json.get('discount_code', '').strip()
+    cart = session.get('cart', {})
+    
+    if not discount_code:
+        return {'valid': False, 'message': 'Please enter a discount code'}, 400
+    
+    if not cart:
+        return {'valid': False, 'message': 'Your cart is empty'}, 400
+    
+    # Calculate current cart total
+    total_with_vat = sum(item['price'] * item['quantity'] for item in cart.values())
+    subtotal_without_vat = total_with_vat / 1.09
+    vat_amount = total_with_vat - subtotal_without_vat
+    
+    # Check discount eligibility
+    is_eligible, message, discount_type, birthday_discount_amount = check_discount_eligibility(
+        session['customer_id'],
+        discount_code,
+        cart
+    )
+    
+    if not is_eligible:
+        return {
+            'valid': False,
+            'message': message
+        }, 400
+    
+    # Calculate discount amount based on type
+    if discount_type.name == "Birthday Discount":
+        # Fixed amount (cheapest pizza)
+        discount_amount = birthday_discount_amount
+        discount_percent = 0  # Not percentage-based
+    else:
+        # Percentage-based discount
+        discount_percent = float(discount_type.percent)
+        discount_amount = total_with_vat * (discount_percent / 100)
+    
+    new_total = total_with_vat - discount_amount
+    new_subtotal = new_total / 1.09
+    new_vat = new_total - new_subtotal
+    
+    return {
+        'valid': True,
+        'message': message,
+        'discount_percent': discount_percent if discount_type.name != "Birthday Discount" else "Fixed Amount",
+        'discount_amount': round(discount_amount, 2),
+        'original_total': round(total_with_vat, 2),
+        'new_total': round(new_total, 2),
+        'new_subtotal': round(new_subtotal, 2),
+        'new_vat': round(new_vat, 2),
+        'savings': round(discount_amount, 2)
+    }, 200
