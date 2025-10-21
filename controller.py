@@ -28,6 +28,9 @@ def verify_password_with_pepper(password, password_hash):
 
 
 #-------------------------Choose the right delivery person with cooldown------------------------------------------------------------
+'''
+This is a helper method to assign delivery persons based on the postal code 
+'''
 def _choose_delivery_person_for_zip(postal_code):
     try:
         pc = int(str(postal_code).strip())
@@ -45,7 +48,7 @@ def _choose_delivery_person_for_zip(postal_code):
               .filter(
                   (DeliveryPerson.last_assigned_at.is_(None)) |
                   (DeliveryPerson.last_assigned_at <= cooldown_threshold)
-              )  # NEW: only pick available couriers
+              )  
               .order_by(func.random())
               .first())
         if dp:
@@ -62,28 +65,24 @@ def _choose_delivery_person_for_zip(postal_code):
 
 
 
-
+#This is the registration route for customers 
 @customer_bp.route('/customer/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
-        # Get form data
         first_name = request.form.get('first_name')
         last_name = request.form.get('last_name')
         email = request.form.get('email')
         telephone = request.form.get('telephone')
         address = request.form.get('address')
         postal_code = request.form.get('postal_code')
-        gender = request.form.get('gender')
-        dob = request.form.get('dob')  # NEW: Get date of birth
+        gender = request.form.get('gender')  
         password = request.form.get('password')
         confirm_password = request.form.get('confirm_password')
         
-        # Validation
-        if not all([first_name, last_name, email, telephone, address, postal_code, gender, dob, password, confirm_password]):
+        if not all([first_name, last_name, email, telephone, address, postal_code, gender, password, confirm_password]):
             flash('All fields are required.', 'error')
             return render_template("customer_register.html")
         
-        # Convert gender string to integer: 0=male, 1=female, 2=other
         gender_map = {
             'male': 0,
             'female': 1,
@@ -96,7 +95,6 @@ def register():
         
         gender_int = gender_map[gender]
         
-        # Validate postal code is numeric
         try:
             postal_code_int = int(postal_code)
             if postal_code_int < 0:
@@ -151,8 +149,7 @@ def register():
                 telephone=telephone,
                 address=address,
                 postal_code=postal_code_int,
-                gender=gender_int,
-                dob=dob_date,  # NEW: Save date of birth
+                gender=gender_int,  
                 password_hash=password_hash
             )
             
@@ -169,15 +166,14 @@ def register():
     
     return render_template("customer_register.html")
 
-# Add this after your customer registration route:
 
+# ThIs is the login route for customers 
 @customer_bp.route('/customer/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
         email = request.form.get('email')
         password = request.form.get('password')
         
-        # Validation
         if not email or not password:
             flash('Email and password are required.', 'error')
             return render_template("customer_login.html")
@@ -185,17 +181,17 @@ def login():
         customer = Customer.query.filter_by(email=email).first()
         
         if customer and verify_password_with_pepper(password, customer.password_hash):
-            # Set session variables
             session['customer_id'] = customer.customer_id
             session['customer_email'] = customer.email
             session['customer_name'] = f"{customer.first_name} {customer.last_name}"
             flash('Login successful! Welcome back!', 'success')
-            return redirect(url_for('customer.app'))  # Redirect to homepage or customer dashboard
+            return redirect(url_for('customer.app'))  
         else:
             flash('Invalid email or password.', 'error')
     
     return render_template("customer_login.html")
 
+#This is the logout route for customers
 @customer_bp.route('/customer/logout')
 def logout():
     session.pop('customer_id', None)
@@ -205,6 +201,10 @@ def logout():
     return redirect(url_for('main.index'))
 
 
+'''
+This is a helper method, helping for the checkout trasnaction. It calculates the pizza price 
+Based on the ingredients
+'''
 def compute_pizza_price(pizza):
     """Calculate pizza price based on ingredients + 40% margin + 9% VAT"""
     pizza_ingredients = db.session.query(
@@ -218,31 +218,26 @@ def compute_pizza_price(pizza):
         pizza_ingredient.c.pizza_id == pizza.pizza_id
     ).all()
 
-    # Calculate base cost from ingredients - use pizza_ingredients (query results) not pizza_ingredient (table)
     base_cost = sum(float(ing.cost) for ing in pizza_ingredients) 
     
-    # Apply 40% margin
     price_with_margin = base_cost * 1.40
     
-    # Apply 9% VAT
     final_price = price_with_margin * 1.09
     
     return round(final_price, 1)
 
 
+#App route for the customers
 @customer_bp.route('/customer/app')
 def app():
     if 'customer_id' not in session:
         flash('You are required to login to access the app.', 'error')
         return redirect(url_for('customer.login'))
     
-    # Get pizzas with ingredients eagerly loaded
     pizzas = Pizza.query.options(joinedload(Pizza.ingredients)).order_by(Pizza.pizza_id.asc()).all()
     
-    # Prepare clean pizza data for template
     pizza_data = []
     for pizza in pizzas:
-        # Check if pizza is vegetarian (all ingredients are vegetarian)
         is_vegetarian = True
         ingredient_names = []
         
@@ -252,7 +247,6 @@ def app():
                 if not ingredient.vegetarian:
                     is_vegetarian = False
         
-        # Prepare ingredient display text
         if ingredient_names:
             if len(ingredient_names) <= 3:
                 ingredients_text = ', '.join(ingredient_names)
@@ -261,13 +255,12 @@ def app():
         else:
             ingredients_text = 'Delicious pizza with premium ingredients'
         
-        # Calculate dynamic price
         dynamic_price = compute_pizza_price(pizza)
         
         pizza_info = {
             'pizza_id': pizza.pizza_id,
             'name': pizza.name,
-            'price': dynamic_price,  # Use dynamic price
+            'price': dynamic_price, 
             'is_vegetarian': is_vegetarian,
             'ingredients_text': ingredients_text,
             'ingredient_count': len(ingredient_names) if ingredient_names else 0
@@ -276,7 +269,6 @@ def app():
     
     customer = Customer.query.get(session['customer_id'])
     
-    # Get customer's first name for welcome message
     customer_first_name = customer.first_name if customer else session.get('customer_name', '').split()[0]
     
     return render_template("customer_app.html", 
@@ -286,7 +278,7 @@ def app():
 
 
 
-
+# This is the route that handles the checkout when paying
 @customer_bp.route("/customer/app/checkout", methods=['GET', 'POST'])
 def checkout():
     if 'customer_id' not in session:
@@ -297,10 +289,8 @@ def checkout():
         flash('Your cart is empty!', 'error')
         return redirect(url_for('customer.app'))
     
-    # Get customer info
     customer = Customer.query.get(session['customer_id'])
     
-    # Calculate cart total and VAT
     cart_items = []
     total_with_vat = 0
     total_pizza_count = 0
@@ -308,7 +298,9 @@ def checkout():
     for pizza_id, item in cart.items():
         subtotal = item['price'] * item['quantity']
         total_with_vat += subtotal
-        total_pizza_count += item['quantity']
+        
+        item_subtotal_without_vat = subtotal / 1.09  
+        item_vat = subtotal - item_subtotal_without_vat
         
         cart_items.append({
             'pizza_id': pizza_id,
@@ -318,98 +310,54 @@ def checkout():
             'is_vegetarian': item['is_vegetarian']
         })
     
-    # Calculate VAT
     subtotal_without_vat = total_with_vat / 1.09
     vat_amount = total_with_vat - subtotal_without_vat
     
-    # Process order confirmation
     if request.method == 'POST':
         delivery_address = request.form.get('delivery_address', customer.address)
         notes = request.form.get('notes', '')
         discount_code_input = request.form.get('discount_code', '').strip().upper()
         
-        # Choose delivery person
         dp = _choose_delivery_person_for_zip(customer.postal_code if customer else None)
         
         try:
-            # Initialize discount variables
-            final_total = total_with_vat
-            applied_discount_code_id = None
-            discount_was_applied = False
-            
-            # === DISCOUNT CODE VALIDATION (REWRITTEN) ===
-            if discount_code_input:
-                is_eligible, message, discount_type, birthday_discount_amount = check_discount_eligibility(
-                    session['customer_id'],
-                    discount_code_input,
-                    cart
-                )
-                if is_eligible and discount_type:
-                    if discount_type.name == "Birthday Discount":
-                        discount_amount = birthday_discount_amount
-                    else:
-                        discount_amount = total_with_vat * (float(discount_type.percent) / 100)
-
-                    final_total = total_with_vat - discount_amount
-
-                    code_obj = DiscountCode.query.filter_by(code=discount_code_input).first()
-                    if code_obj:
-                        applied_discount_code_id = code_obj.discount_code_id
-                        flash(f"{message}: ${discount_amount:.2f} saved!", "success")
-                    else:
-                        flash("Error: Could not apply discount code", "error")
-                    
-                    # Handle loyalty discount pizza count
-                    if discount_type.name == "Loyalty Reward":
-                        customer.add_pizzas_to_count(total_pizza_count - 10)
-                    else:
-                        customer.add_pizzas_to_count(total_pizza_count)
-                else:
-                    # Discount not eligible - show why
-                    flash(f"❌ {message}", "error")
-                    customer.add_pizzas_to_count(total_pizza_count)
-            else:
-                # No discount code provided
-                customer.add_pizzas_to_count(total_pizza_count)
-            
-            # ✅ Create the order with proper discount tracking
             new_order = Order(
                 customer_id=session['customer_id'],
                 delivery_person_id=(dp.delivery_person_id if dp else None),
-                total_price=final_total,
-                discount_code_id=applied_discount_code_id,
+                total_price=total_with_vat,
                 time_stamp=datetime.now(timezone.utc)
             )
             
             db.session.add(new_order)
-            db.session.flush()  # Get the order_id before commit
+            db.session.flush()  
             
-            # Debug logging (remove in production)
-            print(f"✅ Order created: order_id={new_order.order_id}, customer_id={new_order.customer_id}, discount_code_id={new_order.discount_code_id}, total={new_order.total_price}")
-            
-            # Create order items from cart
             for pizza_id, item in cart.items():
                 order_item = OrderItem(
                     order_id=new_order.order_id,
                     pizza_id=int(pizza_id),
                     quantity=item['quantity'],
-                    unit_price=item['price']
+                    unit_price=item['price']  
                 )
                 db.session.add(order_item)
             
-            # Update delivery person assignment time
+            discount_code = request.form.get('discount_code') 
+            if discount_code:
+                code = DiscountCode.query.filter_by(code=discount_code).first()
+                if code:
+                    discount_type = DiscountType.query.get(code.discount_type_id)
+                    if discount_type:
+                        discount_amount = total_with_vat * (discount_type.percent / 100)
+                        new_order.total_price = total_with_vat - discount_amount
+                        flash(f"Applied {discount_type.name} discount: ${discount_amount:.2f}", "success")
+                else:
+                    flash("Invalid discount code", "error")
+            
             if dp:
                 dp.last_assigned_at = datetime.now(timezone.utc)
                 db.session.add(dp)
+
+            db.session.commit() 
             
-            # ✅ Commit everything together
-            db.session.commit()
-            
-            # Verify the discount was saved (debug - remove in production)
-            saved_order = Order.query.get(new_order.order_id)
-            print(f"✅ Verified saved order: discount_code_id={saved_order.discount_code_id}")
-            
-            # Clear cart
             session.pop('cart', None)
             
             flash('🎉 Order placed successfully!', 'success')
@@ -421,7 +369,6 @@ def checkout():
             flash(f'Error processing order: {str(e)}', 'error')
             return redirect(url_for('customer.checkout'))
     
-    # GET request - show checkout form
     return render_template('customer_checkout.html',
                          customer=customer,
                          cart_items=cart_items,
@@ -430,35 +377,31 @@ def checkout():
                          vat_amount=vat_amount,
                          vat_rate=9)
 
+# Here the customers can see the order confirmation
 @customer_bp.route('/customer/order-confirmation/<int:order_id>')
 def order_confirmation(order_id):
     if 'customer_id' not in session:
         return redirect(url_for('customer.login'))
     
-    # Get order details
     order = Order.query.get_or_404(order_id)
     
-    # Security check - verify order belongs to logged-in customer
     if order.customer_id != session['customer_id']:
         flash("Access denied: Order not found", "error")
         return redirect(url_for('customer.app'))
     
-    # Get order items with pizza details
     order_items = []
     for item in order.order_items:
         pizza = Pizza.query.get(item.pizza_id)
         if pizza:
-            # Use unit_price from order_item (price at time of purchase)
             order_items.append({
                 'name': pizza.name,
                 'quantity': item.quantity,
-                'price': float(item.unit_price),  # Use stored unit_price
+                'price': float(item.unit_price),  
                 'subtotal': float(item.unit_price) * item.quantity
             })
     
     customer = Customer.query.get(session['customer_id'])
     
-    # Pre-calculate VAT values
     subtotal_without_vat = float(order.total_price) / 1.09
     vat_amount = float(order.total_price) - subtotal_without_vat
     
@@ -469,6 +412,7 @@ def order_confirmation(order_id):
                          subtotal_without_vat=subtotal_without_vat,
                          vat_amount=vat_amount)
 
+# Here the customers can see their orders 
 @customer_bp.route('/customer/orders')
 def customer_orders():
    if 'customer_id' not in session:
@@ -483,7 +427,7 @@ def customer_orders():
            'order_id': order.order_id,
            'total_price': float(order.total_price),
            'time_stamp': order.time_stamp,
-           'status': order.get_status(),  # Use dynamic status
+           'status': order.get_status(),  
            'delivery_person': order.delivery_person.name if order.delivery_person else 'Assigning...',
            'delivered_at': order.delivered_at
        }
@@ -491,7 +435,7 @@ def customer_orders():
   
    return render_template('customer_orders.html', orders=order_list)
 
-
+# Adding stuff to the cart
 @customer_bp.route('/customer/cart/add', methods=['POST'])
 def add_to_cart():
     if 'customer_id' not in session:
@@ -504,25 +448,20 @@ def add_to_cart():
         flash('Please select a valid quantity', 'error')
         return redirect(url_for('customer.app'))
     
-    # Get pizza details from database
     pizza = Pizza.query.get_or_404(pizza_id)
     
-    # Calculate dynamic price based on ingredients
     dynamic_price = compute_pizza_price(pizza)
 
     
-    # Check if pizza is vegetarian
     is_vegetarian = True
     for ingredient in pizza.ingredients:
         if not ingredient.vegetarian:
             is_vegetarian = False
             break
     
-    # Initialize cart in session if not exists
     if 'cart' not in session:
         session['cart'] = {}
     
-    # Add to cart with dynamically calculated price
     cart = session['cart']
     if pizza_id in cart:
         cart[pizza_id]['quantity'] += quantity
@@ -538,6 +477,7 @@ def add_to_cart():
     flash(f'Added {quantity} {pizza.name} to cart!', 'success')
     return redirect(url_for('customer.app'))
 
+# This makes sure that the customers can see theit cart
 @customer_bp.route('/customer/cart')
 def view_cart():
     if 'customer_id' not in session:
@@ -563,6 +503,7 @@ def view_cart():
                          cart_items=cart_items, 
                          total=total)
 
+# Route that allows to remove stuff from the cart
 @customer_bp.route('/customer/cart/remove', methods=['POST'])
 def remove_from_cart():
     if 'customer_id' not in session:
@@ -578,6 +519,7 @@ def remove_from_cart():
     
     return redirect(url_for('customer.view_cart'))
 
+# Enable to clear the whole cart
 @customer_bp.route('/customer/cart/clear', methods=['POST'])
 def clear_cart():
     if 'customer_id' not in session:
@@ -602,28 +544,26 @@ def menu():
 ######## BELOW IS THE CONTROLLER FOR THE ADMIN DASHBOARD, THIS CAN ONLY BE ACCESSED USING AN ADMIN ACCOUNT
 
 #---------------------ADMIN DASHBOARD ---------------------------------
-
+#Admin login
 @admin_bp.route('/admin/login', methods=['GET', 'POST'])
 def admin_login():
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
         
-        # Query the admin from the database
         admin = Admin.query.filter_by(username=username).first()
         
         if admin and verify_password_with_pepper(password, admin.password_hash):
-            # Set session variables
             session['admin_id'] = admin.admin_id
             session['admin_username'] = admin.username
             flash('Login successful!', 'success')
-            return redirect(url_for('admin.dashboard'))  # Ensure this route exists
+            return redirect(url_for('admin.dashboard'))  
         else:
             flash('Invalid username or password.', 'error')
     
     return render_template("admin_login.html")
 
-# Update admin dashboard route
+# The admin dashboard
 @admin_bp.route('/admin/dashboard')
 def dashboard():
     if 'admin_id' not in session:
@@ -656,7 +596,6 @@ def logout():
 ####################################
 
 # ---------------------- CUSTOMER ADMIN -------------------------
-# Update your existing customers route:
 @admin_bp.route('/admin/customers')
 def customers():
     if 'admin_id' not in session:
@@ -667,7 +606,7 @@ def customers():
     stats = {
         'total_customers': len(customers),
         'customers_with_orders': len([c for c in customers if hasattr(c, 'orders') and c.orders]),
-        'total_count': len(customers)  # For search functionality
+        'total_count': len(customers) 
     }
     
     return render_template("admin_customers.html", customers=customers, stats=stats)
@@ -689,7 +628,6 @@ def pizzas():
         Ingredient, pizza_ingredient.c.ingredient_id == Ingredient.ingredient_id
     ).order_by(pizza_ingredient.c.pizza_id, Ingredient.name).all()
     
-    # Group ingredients by pizza_id for easy lookup
     ingredients_by_pizza = {}
     for pizza_id, ingredient_id, ingredient_name, is_vegetarian in pizza_ingredients_query:
         if pizza_id not in ingredients_by_pizza:
@@ -700,13 +638,10 @@ def pizzas():
             'vegetarian': is_vegetarian
         })
     
-    # Prepare clean pizza data using the grouped ingredients
     pizza_data = []
     for pizza in pizzas:
-        # Get ingredients from our pre-fetched data
         pizza_ingredients = ingredients_by_pizza.get(pizza.pizza_id, [])
         
-        # Check if pizza is vegetarian (all ingredients are vegetarian)
         is_vegetarian = True
         ingredient_names = []
         
@@ -717,13 +652,12 @@ def pizzas():
         
         total_ingredient_cost = sum(float(ingredient.cost) for ingredient in pizza.ingredients) if pizza.ingredients else 0
         
-        # Calculate dynamic price
         dynamic_price = compute_pizza_price(pizza)
         
         pizza_info = {
             'pizza_id': pizza.pizza_id,
             'name': pizza.name,
-            'price': dynamic_price,  # Use dynamic price
+            'price': dynamic_price,  
             'description': pizza.description,
             'is_vegetarian': is_vegetarian,
             'ingredient_names': ingredient_names,
@@ -775,7 +709,7 @@ def ingredients():
             'name': ingredient.name,
             'cost': ingredient.cost,
             'vegetarian': ingredient.vegetarian,
-            'pizza_names': pizza_names[:2],  # Only first 2 for display
+            'pizza_names': pizza_names[:2],  
             'pizza_count': pizza_count,
             'has_more_pizzas': pizza_count > 2,
             'additional_pizzas': pizza_count - 2 if pizza_count > 2 else 0
@@ -859,9 +793,9 @@ def orders():
         
         order_info = {
             'order_id': order.order_id,
-            'order_date': order.time_stamp if order.time_stamp else datetime.now(),  # Using time_stamp
-            'total_amount': order_amount,  # Using total_price from model
-            'status': order_status,  # Default status
+            'order_date': order.time_stamp if order.time_stamp else datetime.now(),  
+            'total_amount': order_amount,  
+            'status': order_status,  
             'customer_name': customer_name,
             'customer_email': customer_email,
             'pizza_items': pizza_items
@@ -934,7 +868,7 @@ def top_pizzas():
     report_data = []
     for pizza_id, name, total_sold, order_count in top_pizzas_query:
         pizza = Pizza.query.get(pizza_id)
-        price = compute_pizza_price(pizza)  # Use your existing function
+        price = compute_pizza_price(pizza)  
         revenue = float(total_sold) * price
         
         report_data.append({
@@ -956,7 +890,6 @@ def earnings_report():
     
     filter_type = request.args.get('filter', 'gender')
     
-    # ===== BY GENDER (FIXED - gender is String not Integer) =====
     if filter_type == 'gender':
         gender_earnings = (
             db.session.query(
@@ -971,7 +904,6 @@ def earnings_report():
         
         report_data = []
         for gender, order_count, total_revenue in gender_earnings:
-            # Gender is already a string in your model ('male', 'female', 'other')
             report_data.append({
                 'category': gender.capitalize() if gender else 'Unknown',
                 'order_count': int(order_count),
@@ -981,7 +913,6 @@ def earnings_report():
     
     # ===== BY AGE GROUP - SKIP FOR NOW (no date_of_birth yet) =====
     elif filter_type == 'age':
-        # Age-based earnings (uses Customer.dob)
         from datetime import date as _date
 
         customers_with_orders = (
@@ -997,7 +928,6 @@ def earnings_report():
             .all()
         )
 
-        # Initialize age groups
         age_groups = {
             '18-25': {'revenue': 0.0, 'orders': 0},
             '26-35': {'revenue': 0.0, 'orders': 0},
