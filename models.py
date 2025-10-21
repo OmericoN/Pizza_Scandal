@@ -1,9 +1,10 @@
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 from dotenv import load_dotenv
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, date
 from sqlalchemy import SmallInteger, Column
 import os
+
 load_dotenv()
 db = SQLAlchemy()
 
@@ -26,6 +27,8 @@ class Customer(db.Model):
     postal_code = db.Column(db.String(10))
     gender = db.Column(db.String(10), nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
+    dob = db.Column(db.Date, nullable=False)
+    loyalty_pizza_count = db.Column(db.Integer, default=0)
     def set_password(self, password):
         # Add pepper to password before hashing
         pepper = os.environ.get('PASSWORD_PEPPER', 'default-pepper-change-in-production')
@@ -37,6 +40,18 @@ class Customer(db.Model):
         pepper = os.environ.get('PASSWORD_PEPPER', 'default-pepper-change-in-production')
         peppered_password = password + pepper
         return check_password_hash(self.password_hash, peppered_password)
+    
+    def is_birthday_today(self):
+        if not self.dob:
+            return False
+        
+        today = date.today()
+        # Fix: Change self.dob == today.month to self.dob.month == today.month
+        return (self.dob.month == today.month and 
+                self.dob.day == today.day)
+    
+    def add_pizzas_to_count(self, pizza_count):
+        self.loyalty_pizza_count += pizza_count
 
     def __repr__(self):
         return f"<CustomerID {self.customer_id} First Name {self.first_name} address {self.address}>"
@@ -45,7 +60,6 @@ class DiscountCode(db.Model):
     __tablename__="DiscountCode"
     discount_code_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     code = db.Column(db.String(50), unique=True, nullable=False)
-    is_redeemed = db.Column(db.Boolean, default=False, nullable=False)
     # Foreign key to DiscountType
     discount_type_id = db.Column(db.Integer, db.ForeignKey("DiscountType.discount_type_id"), nullable=False)
 
@@ -53,7 +67,7 @@ class DiscountCode(db.Model):
     discount_type = db.relationship("DiscountType", back_populates="discount_codes")
 
     def __repr__(self):
-        return f"DiscountCode id: {self.discount_code_id}, code: {self.code}, redeemed: {self.is_redeemed}"
+        return f"DiscountCode id: {self.discount_code_id}, code: {self.code}"
 
 class DiscountType(db.Model):
     __tablename__="DiscountType"
@@ -191,8 +205,9 @@ class Admin(db.Model):
    ###
 
 def seed_data():
+    today = date.today()
     if Customer.query.count() == 0:
-        demo_customer = Customer(first_name="demo", last_name="demo", email="demo@pizzascandal.com", telephone="+000000000", address="le pizzeria, earth", postal_code="6200", gender="other")
+        demo_customer = Customer(first_name="demo", last_name="demo", email="demo@pizzascandal.com", telephone="+000000000", address="le pizzeria, earth", postal_code="6200", gender="other", dob=date(1995, today.month, today.day))
         demo_customer.set_password("demo123")
         db.session.add(demo_customer)
     
@@ -208,5 +223,33 @@ def seed_data():
                 new_admin.set_password(admin["password"])
                 db.session.add(new_admin)
 
+    if DiscountType.query.count() == 0:
+        discount_types = [
+            DiscountType(name="Birthday Discount", percent=15),
+            DiscountType(name="One-Time Promo", percent=20),
+            DiscountType(name="Loyalty Reward", percent=10)
+        ]
+        for dt in discount_types:
+            db.session.add(dt)
+
+    if DiscountCode.query.count() == 0:
+        # Get the discount types we just created
+        birthday_type = DiscountType.query.filter_by(name="Birthday Discount").first()
+        onetime_type = DiscountType.query.filter_by(name="One-Time Promo").first()
+        loyalty_type = DiscountType.query.filter_by(name="Loyalty Reward").first()
+        
+        discount_codes = [
+            # Birthday discount code (automatic, no manual code needed, but we create one for system use)
+            DiscountCode(
+                code="BDAY15",
+                discount_type_id=birthday_type.discount_type_id)
+            ,DiscountCode(
+                code="WELCOME20",
+                discount_type_id=onetime_type.discount_type_id),
+            DiscountCode(
+                code="LOYAL10",
+                discount_type_id=loyalty_type.discount_type_id)]
+        for code in discount_codes:
+            db.session.add(code)
+            
     db.session.commit()
-    
