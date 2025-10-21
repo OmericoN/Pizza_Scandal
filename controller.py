@@ -407,7 +407,7 @@ def order_confirmation(order_id):
                          vat_amount=vat_amount)
 
 @customer_bp.route('/customer/orders')
-def my_orders():
+def customer_orders():
    if 'customer_id' not in session:
        flash('Please log in first.', 'error')
        return redirect(url_for('customer.login'))
