@@ -1071,58 +1071,46 @@ def earnings_report():
                          report_data=report_data, 
                          filter_type=filter_type)
 
-# Add this helper function near the top of your file, after the imports
 def check_discount_eligibility(customer_id, discount_code, cart):
     """
     Check if customer is eligible for a discount code.
     Returns: (is_eligible: bool, message: str, discount_type: DiscountType or None, discount_amount: float)
     """
-    # Validate inputs
     if not customer_id or not discount_code:
         return False, "Invalid request", None, 0
     
-    # Get the discount code from database
     code = DiscountCode.query.filter_by(code=discount_code.upper().strip()).first()
     if not code:
         return False, f"Discount code '{discount_code}' does not exist", None, 0
     
-    # Get discount type
     discount_type = DiscountType.query.get(code.discount_type_id)
     if not discount_type:
         return False, "Discount type configuration error", None, 0
     
-    # Get customer
     customer = Customer.query.get(customer_id)
     if not customer:
         return False, "Customer not found", None, 0
     
-    # === ONE-TIME PROMO DISCOUNT (REWRITTEN) ===
     if discount_type.name == "One-Time Promo":
-        # Query all orders by this customer that used this specific discount code
         orders_with_this_code = (
             db.session.query(Order)
             .filter(
                 Order.customer_id == customer_id,
                 Order.discount_code_id == code.discount_code_id
             )
-            .all()  # Get all to see count
+            .all() 
         )
         
-        # If customer has ANY order with this code, reject
         if orders_with_this_code:
             order_count = len(orders_with_this_code)
             return False, f"This one-time discount code has already been used by you ({order_count} time(s)). Each customer can only use WELCOME20 once.", None, 0
         
-        # Customer has never used this code before - allow it
         return True, f"One-Time Promo: {discount_type.percent}% off your order", discount_type, 0
     
-    # === BIRTHDAY DISCOUNT - FREE CHEAPEST PIZZA ===
     elif discount_type.name == "Birthday Discount":
-        # Check if today is customer's birthday
         if not customer.is_birthday_today():
             return False, f"Birthday discount only works on your birthday ({customer.dob.strftime('%B %d')}). Come back then!", None, 0
         
-        # Check if customer already used birthday discount TODAY
         today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
         today_end = datetime.now().replace(hour=23, minute=59, second=59, microsecond=999999)
         
@@ -1140,7 +1128,6 @@ def check_discount_eligibility(customer_id, discount_code, cart):
         if birthday_orders_today:
             return False, "You have already used your birthday discount today. Only one birthday discount per year!", None, 0
         
-        # Find the cheapest pizza in the cart (price of 1 unit)
         if not cart:
             return False, "Your cart is empty", None, 0
         
@@ -1148,12 +1135,9 @@ def check_discount_eligibility(customer_id, discount_code, cart):
         
         return True, f"🎂 Happy Birthday! 1 FREE cheapest pizza (worth ${cheapest_pizza_price:.2f})", discount_type, cheapest_pizza_price
     
-    # === LOYALTY DISCOUNT ===
     elif discount_type.name == "Loyalty Reward":
-        # Calculate total pizzas in cart
         cart_pizza_count = sum(item['quantity'] for item in cart.values())
         
-        # Check if customer + cart pizzas >= 10
         total_pizzas = customer.loyalty_pizza_count + cart_pizza_count
         
         if total_pizzas < 10:
@@ -1164,10 +1148,7 @@ def check_discount_eligibility(customer_id, discount_code, cart):
     
     return False, "Unknown discount type", None, 0
 
-# Update your checkout route to use the new discount logic
-# ...existing code...
 
-# Add this new route after your checkout route
 @customer_bp.route('/customer/validate-discount', methods=['POST'])
 def validate_discount():
     """AJAX endpoint to validate discount code before checkout"""
@@ -1183,10 +1164,8 @@ def validate_discount():
     if not cart:
         return {'valid': False, 'message': 'Your cart is empty'}, 400
     
-    # Calculate current cart total
     total_with_vat = sum(item['price'] * item['quantity'] for item in cart.values())
     
-    # Check discount eligibility
     is_eligible, message, discount_type, birthday_discount_amount = check_discount_eligibility(
         session['customer_id'],
         discount_code,
@@ -1199,7 +1178,6 @@ def validate_discount():
             'message': message
         }, 400
     
-    # Calculate discount amount based on type
     if discount_type.name == "Birthday Discount":
         discount_amount = birthday_discount_amount
         discount_percent = "FREE Pizza"
