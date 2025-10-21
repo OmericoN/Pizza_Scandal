@@ -6,6 +6,7 @@ from sqlalchemy import func
 import os
 from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import joinedload
+from zoneinfo import ZoneInfo
 
 
 main_bp = Blueprint('main', __name__)
@@ -429,6 +430,103 @@ def customer_orders():
    return render_template('customer_orders.html', orders=order_list)
 
 
+@customer_bp.route('/customer/cart/add', methods=['POST'])
+def add_to_cart():
+    if 'customer_id' not in session:
+        return redirect(url_for('customer.login'))
+    
+    pizza_id = request.form.get('pizza_id')
+    quantity = int(request.form.get('quantity', 1))
+    
+    if quantity <= 0:
+        flash('Please select a valid quantity', 'error')
+        return redirect(url_for('customer.app'))
+    
+    # Get pizza details from database
+    pizza = Pizza.query.get_or_404(pizza_id)
+    
+    # Calculate dynamic price based on ingredients
+    dynamic_price = compute_pizza_price(pizza)
+
+    
+    # Check if pizza is vegetarian
+    is_vegetarian = True
+    for ingredient in pizza.ingredients:
+        if not ingredient.vegetarian:
+            is_vegetarian = False
+            break
+    
+    # Initialize cart in session if not exists
+    if 'cart' not in session:
+        session['cart'] = {}
+    
+    # Add to cart with dynamically calculated price
+    cart = session['cart']
+    if pizza_id in cart:
+        cart[pizza_id]['quantity'] += quantity
+    else:
+        cart[pizza_id] = {
+            'name': pizza.name,
+            'price': dynamic_price,  
+            'quantity': quantity,
+            'is_vegetarian': is_vegetarian
+        }
+    
+    session['cart'] = cart
+    flash(f'Added {quantity} {pizza.name} to cart!', 'success')
+    return redirect(url_for('customer.app'))
+
+@customer_bp.route('/customer/cart')
+def view_cart():
+    if 'customer_id' not in session:
+        return redirect(url_for('customer.login'))
+    
+    cart = session.get('cart', {})
+    cart_items = []
+    total = 0
+    
+    for pizza_id, item in cart.items():
+        subtotal = item['price'] * item['quantity']
+        total += subtotal
+        cart_items.append({
+            'pizza_id': pizza_id,
+            'name': item['name'],
+            'price': item['price'],
+            'quantity': item['quantity'],
+            'subtotal': subtotal,
+            'is_vegetarian': item['is_vegetarian']
+        })
+    
+    return render_template('customer_cart.html', 
+                         cart_items=cart_items, 
+                         total=total)
+
+@customer_bp.route('/customer/cart/remove', methods=['POST'])
+def remove_from_cart():
+    if 'customer_id' not in session:
+        return redirect(url_for('customer.login'))
+    
+    pizza_id = request.form.get('pizza_id')
+    cart = session.get('cart', {})
+    
+    if pizza_id in cart:
+        del cart[pizza_id]
+        session['cart'] = cart
+        flash('Item removed from cart', 'success')
+    
+    return redirect(url_for('customer.view_cart'))
+
+@customer_bp.route('/customer/cart/clear', methods=['POST'])
+def clear_cart():
+    if 'customer_id' not in session:
+        return redirect(url_for('customer.login'))
+    
+    session.pop('cart', None)
+    flash('Cart cleared', 'success')
+    return redirect(url_for('customer.app'))
+
+
+
 
 @main_bp.route("/menu")
 def menu():
@@ -715,105 +813,146 @@ def orders():
         'total_orders': total_orders,
         'total_revenue': total_revenue,
         'average_order': average_order,
-        'delivered_orders': 0  # Since no status field exists, set to 0
+        'delivered_orders': 0  
     }
     
     return render_template("admin_orders.html", orders=order_data, stats=stats)
 
-# Add these after your existing customer routes
-
-@customer_bp.route('/customer/cart/add', methods=['POST'])
-def add_to_cart():
-    if 'customer_id' not in session:
-        return redirect(url_for('customer.login'))
+#-------------------- ADMIN REPORTS ------------------------------------------------------------------------------------------
+@admin_bp.route('/admin/reports/undelivered')
+def undelivered_orders():
+    if 'admin_id' not in session:
+        return redirect(url_for('admin.admin_login'))
     
-    pizza_id = request.form.get('pizza_id')
-    quantity = int(request.form.get('quantity', 1))
+    undelivered = Order.query.filter(
+        Order.status.in_(['pending', 'preparing', 'out_for_delivery'])
+    ).order_by(Order.time_stamp.desc()).all()
     
-    if quantity <= 0:
-        flash('Please select a valid quantity', 'error')
-        return redirect(url_for('customer.app'))
-    
-    # Get pizza details from database
-    pizza = Pizza.query.get_or_404(pizza_id)
-    
-    # Calculate dynamic price based on ingredients
-    dynamic_price = compute_pizza_price(pizza)
-
-    
-    # Check if pizza is vegetarian
-    is_vegetarian = True
-    for ingredient in pizza.ingredients:
-        if not ingredient.vegetarian:
-            is_vegetarian = False
-            break
-    
-    # Initialize cart in session if not exists
-    if 'cart' not in session:
-        session['cart'] = {}
-    
-    # Add to cart with dynamically calculated price
-    cart = session['cart']
-    if pizza_id in cart:
-        cart[pizza_id]['quantity'] += quantity
-    else:
-        cart[pizza_id] = {
-            'name': pizza.name,
-            'price': dynamic_price,  # Use dynamic price instead of pizza.price
-            'quantity': quantity,
-            'is_vegetarian': is_vegetarian
-        }
-    
-    session['cart'] = cart
-    flash(f'Added {quantity} {pizza.name} to cart!', 'success')
-    return redirect(url_for('customer.app'))
-
-@customer_bp.route('/customer/cart')
-def view_cart():
-    if 'customer_id' not in session:
-        return redirect(url_for('customer.login'))
-    
-    cart = session.get('cart', {})
-    cart_items = []
-    total = 0
-    
-    for pizza_id, item in cart.items():
-        subtotal = item['price'] * item['quantity']
-        total += subtotal
-        cart_items.append({
-            'pizza_id': pizza_id,
-            'name': item['name'],
-            'price': item['price'],
-            'quantity': item['quantity'],
-            'subtotal': subtotal,
-            'is_vegetarian': item['is_vegetarian']
+    report_data = []
+    for order in undelivered:
+        customer = Customer.query.get(order.customer_id)
+        delivery_person = DeliveryPerson.query.get(order.delivery_person_id) if order.delivery_person_id else None
+        
+        elapsed = datetime.now(ZoneInfo("Europe/Brussels")) - order.time_stamp
+        minutes_waiting = int(elapsed.total_seconds() / 60)
+        
+        report_data.append({
+            'order_id': order.order_id,
+            'customer_name': f"{customer.first_name} {customer.last_name}",
+            'customer_address': customer.address,
+            'customer_postal_code': customer.postal_code,
+            'status': order.get_status(),
+            'order_time': order.time_stamp,
+            'minutes_waiting': minutes_waiting,
+            'delivery_person': delivery_person.name if delivery_person else 'Not assigned',
+            'total': float(order.total_price)
         })
     
-    return render_template('customer_cart.html', 
-                         cart_items=cart_items, 
-                         total=total)
+    return render_template('admin_reports_undelivered.html', orders=report_data)
 
-@customer_bp.route('/customer/cart/remove', methods=['POST'])
-def remove_from_cart():
-    if 'customer_id' not in session:
-        return redirect(url_for('customer.login'))
+@admin_bp.route('/admin/reports/top-pizzas')
+def top_pizzas():
+    if 'admin_id' not in session:
+        return redirect(url_for('admin.admin_login'))
     
-    pizza_id = request.form.get('pizza_id')
-    cart = session.get('cart', {})
+    one_month_ago = datetime.now(timezone.utc) - timedelta(days=30)
     
-    if pizza_id in cart:
-        del cart[pizza_id]
-        session['cart'] = cart
-        flash('Item removed from cart', 'success')
+    top_pizzas_query = (
+        db.session.query(
+            Pizza.pizza_id,
+            Pizza.name,
+            func.sum(OrderItem.quantity).label('total_sold'),
+            func.count(func.distinct(Order.order_id)).label('order_count')
+        )
+        .join(OrderItem, OrderItem.pizza_id == Pizza.pizza_id)
+        .join(Order, Order.order_id == OrderItem.order_id)
+        .filter(Order.time_stamp >= one_month_ago)
+        .group_by(Pizza.pizza_id, Pizza.name)
+        .order_by(func.sum(OrderItem.quantity).desc())
+        .limit(3)
+        .all()
+    )
     
-    return redirect(url_for('customer.view_cart'))
+    report_data = []
+    for pizza_id, name, total_sold, order_count in top_pizzas_query:
+        pizza = Pizza.query.get(pizza_id)
+        price = compute_pizza_price(pizza)  # Use your existing function
+        revenue = float(total_sold) * price
+        
+        report_data.append({
+            'rank': len(report_data) + 1,
+            'name': name,
+            'total_sold': int(total_sold),
+            'order_count': int(order_count),
+            'price': price,
+            'revenue': revenue
+        })
+    
+    return render_template('admin_reports_top_pizzas.html', pizzas=report_data)
 
-@customer_bp.route('/customer/cart/clear', methods=['POST'])
-def clear_cart():
-    if 'customer_id' not in session:
-        return redirect(url_for('customer.login'))
-    
-    session.pop('cart', None)
-    flash('Cart cleared', 'success')
-    return redirect(url_for('customer.app'))
 
+@admin_bp.route('/admin/reports/earnings')
+def earnings_report():
+    if 'admin_id' not in session:
+        return redirect(url_for('admin.admin_login'))
+    
+    filter_type = request.args.get('filter', 'gender')
+    
+    # ===== BY GENDER (FIXED - gender is String not Integer) =====
+    if filter_type == 'gender':
+        gender_earnings = (
+            db.session.query(
+                Customer.gender,
+                func.count(Order.order_id).label('order_count'),
+                func.sum(Order.total_price).label('total_revenue')
+            )
+            .join(Order, Order.customer_id == Customer.customer_id)
+            .group_by(Customer.gender)
+            .all()
+        )
+        
+        report_data = []
+        for gender, order_count, total_revenue in gender_earnings:
+            # Gender is already a string in your model ('male', 'female', 'other')
+            report_data.append({
+                'category': gender.capitalize() if gender else 'Unknown',
+                'order_count': int(order_count),
+                'total_revenue': float(total_revenue) if total_revenue else 0,
+                'avg_order_value': float(total_revenue / order_count) if order_count > 0 else 0
+            })
+    
+    # ===== BY AGE GROUP - SKIP FOR NOW (no date_of_birth yet) =====
+    elif filter_type == 'age':
+        flash('Age-based reporting coming soon (waiting for date_of_birth field)', 'info')
+        report_data = []
+    
+    elif filter_type == 'postal_code':
+        postal_earnings = (
+            db.session.query(
+                Customer.postal_code,
+                func.count(Order.order_id).label('order_count'),
+                func.sum(Order.total_price).label('total_revenue')
+            )
+            .join(Order, Order.customer_id == Customer.customer_id)
+            .filter(Customer.postal_code.isnot(None))  
+            .group_by(Customer.postal_code)
+            .order_by(func.sum(Order.total_price).desc())
+            .limit(20)  
+            .all()
+        )
+        
+        report_data = []
+        for postal_code, order_count, total_revenue in postal_earnings:
+            report_data.append({
+                'category': f'Postal Code {postal_code}',
+                'order_count': int(order_count),
+                'total_revenue': float(total_revenue) if total_revenue else 0,
+                'avg_order_value': float(total_revenue / order_count) if order_count > 0 else 0
+            })
+    
+    else:
+        report_data = []
+    
+    return render_template('admin_reports_earnings.html', 
+                         report_data=report_data, 
+                         filter_type=filter_type)

@@ -1,0 +1,165 @@
+{% extends "layout_v2.html" %}
+
+{% block title %}Earnings Report - Admin{% endblock %}
+
+{% block content_wrapper %}
+<div style="min-height: 100vh; background: var(--background); padding: var(--space-xl) 0;">
+    <div class="container">
+        <!-- Header -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-xl);">
+            <div>
+                <h1 class="text-h1" style="margin-bottom: var(--space-sm);">💰 Earnings Report</h1>
+                <p class="text-body-small" style="color: var(--text-secondary);">Revenue breakdown by customer segments</p>
+            </div>
+            <a href="{{ url_for('admin.dashboard') }}" class="btn btn-secondary">← Back to Dashboard</a>
+        </div>
+
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <div class="flash-message flash-{{ category }}">
+                            <span>{{ message }}</span>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <!-- Filter Tabs -->
+        <div class="card" style="margin-bottom: var(--space-xl);">
+            <div style="display: flex; gap: var(--space-sm); flex-wrap: wrap;">
+                <a href="{{ url_for('admin.earnings_report', filter='gender') }}" 
+                   class="btn {% if filter_type == 'gender' %}btn-primary{% else %}btn-secondary{% endif %}">
+                    👥 By Gender
+                </a>
+                <a href="{{ url_for('admin.earnings_report', filter='age') }}" 
+                   class="btn {% if filter_type == 'age' %}btn-primary{% else %}btn-secondary{% endif %}">
+                    📅 By Age
+                </a>
+                <a href="{{ url_for('admin.earnings_report', filter='postal_code') }}" 
+                   class="btn {% if filter_type == 'postal_code' %}btn-primary{% else %}btn-secondary{% endif %}">
+                    📮 By Postal Code
+                </a>
+            </div>
+        </div>
+
+        <!-- Report Data -->
+        {% if report_data %}
+            <!-- Summary Cards -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--space-md); margin-bottom: var(--space-xl);">
+                <div class="card" style="text-align: center;">
+                    <div class="text-h2" style="color: var(--brand); margin-bottom: var(--space-xs);">
+                        ${{ "%.2f"|format(report_data|sum(attribute='total_revenue')) }}
+                    </div>
+                    <div class="text-body-small" style="color: var(--text-secondary);">Total Revenue</div>
+                </div>
+                <div class="card" style="text-align: center;">
+                    <div class="text-h2" style="color: var(--info); margin-bottom: var(--space-xs);">
+                        {{ report_data|sum(attribute='order_count') }}
+                    </div>
+                    <div class="text-body-small" style="color: var(--text-secondary);">Total Orders</div>
+                </div>
+                <div class="card" style="text-align: center;">
+                    <div class="text-h2" style="color: var(--success); margin-bottom: var(--space-xs);">
+                        ${{ "%.2f"|format((report_data|sum(attribute='total_revenue')) / (report_data|sum(attribute='order_count')) if report_data|sum(attribute='order_count') > 0 else 0) }}
+                    </div>
+                    <div class="text-body-small" style="color: var(--text-secondary);">Avg Order Value</div>
+                </div>
+            </div>
+
+            <!-- Data Table -->
+            <div class="card">
+                <div style="overflow-x: auto;">
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr style="border-bottom: 2px solid var(--border);">
+                                <th style="padding: var(--space-md); text-align: left; font-weight: 600; color: var(--text-secondary); font-size: 14px;">
+                                    {% if filter_type == 'gender' %}Gender
+                                    {% elif filter_type == 'age' %}Age Group
+                                    {% elif filter_type == 'postal_code' %}Postal Code
+                                    {% else %}Category
+                                    {% endif %}
+                                </th>
+                                <th style="padding: var(--space-md); text-align: center; font-weight: 600; color: var(--text-secondary); font-size: 14px;">Orders</th>
+                                <th style="padding: var(--space-md); text-align: right; font-weight: 600; color: var(--text-secondary); font-size: 14px;">Revenue</th>
+                                <th style="padding: var(--space-md); text-align: right; font-weight: 600; color: var(--text-secondary); font-size: 14px;">Avg Order</th>
+                                <th style="padding: var(--space-md); text-align: center; font-weight: 600; color: var(--text-secondary); font-size: 14px;">% of Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% set total_revenue = report_data|sum(attribute='total_revenue') %}
+                            {% for item in report_data %}
+                                <tr style="border-bottom: 1px solid var(--border);">
+                                    <td style="padding: var(--space-md);">
+                                        <span class="text-body" style="font-weight: 600;">{{ item.category }}</span>
+                                    </td>
+                                    <td style="padding: var(--space-md); text-align: center;">
+                                        <span class="badge badge-brand">{{ item.order_count }}</span>
+                                    </td>
+                                    <td style="padding: var(--space-md); text-align: right;">
+                                        <span class="text-body" style="font-weight: 600; color: var(--success);">
+                                            ${{ "%.2f"|format(item.total_revenue) }}
+                                        </span>
+                                    </td>
+                                    <td style="padding: var(--space-md); text-align: right;">
+                                        <span class="text-body-small" style="color: var(--text-secondary);">
+                                            ${{ "%.2f"|format(item.avg_order_value) }}
+                                        </span>
+                                    </td>
+                                    <td style="padding: var(--space-md); text-align: center;">
+                                        <div style="display: flex; align-items: center; justify-content: center; gap: var(--space-sm);">
+                                            <div style="flex: 0 0 60px; height: 8px; background: var(--border); border-radius: 4px; overflow: hidden;">
+                                                <div style="height: 100%; background: var(--brand); width: {{ (item.total_revenue / total_revenue * 100)|round|int if total_revenue > 0 else 0 }}%;"></div>
+                                            </div>
+                                            <span class="text-body-small" style="font-weight: 600;">
+                                                {{ (item.total_revenue / total_revenue * 100)|round(1) if total_revenue > 0 else 0 }}%
+                                            </span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot>
+                            <tr style="background: var(--warm); border-top: 2px solid var(--border);">
+                                <td style="padding: var(--space-md);">
+                                    <span class="text-body" style="font-weight: 700;">Total</span>
+                                </td>
+                                <td style="padding: var(--space-md); text-align: center;">
+                                    <span class="text-body" style="font-weight: 700;">{{ report_data|sum(attribute='order_count') }}</span>
+                                </td>
+                                <td style="padding: var(--space-md); text-align: right;">
+                                    <span class="text-body" style="font-weight: 700; color: var(--success);">
+                                        ${{ "%.2f"|format(report_data|sum(attribute='total_revenue')) }}
+                                    </span>
+                                </td>
+                                <td style="padding: var(--space-md); text-align: right;">
+                                    <span class="text-body" style="font-weight: 700;">
+                                        ${{ "%.2f"|format((report_data|sum(attribute='total_revenue')) / (report_data|sum(attribute='order_count')) if report_data|sum(attribute='order_count') > 0 else 0) }}
+                                    </span>
+                                </td>
+                                <td style="padding: var(--space-md); text-align: center;">
+                                    <span class="text-body" style="font-weight: 700;">100%</span>
+                                </td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        {% else %}
+            <div class="card" style="text-align: center; padding: var(--space-xxl);">
+                <div style="font-size: 48px; margin-bottom: var(--space-md);">📊</div>
+                <h3 class="text-h3" style="margin-bottom: var(--space-sm);">No Data Available</h3>
+                <p class="text-body-small" style="color: var(--text-secondary);">
+                    {% if filter_type == 'age' %}
+                        Age-based reporting will be available once customer birth dates are collected.
+                    {% else %}
+                        No earnings data for this category yet.
+                    {% endif %}
+                </p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

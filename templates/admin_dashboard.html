@@ -144,6 +144,74 @@
                 </div>
             </div>
         </div>
+
+        <!-- REPORTS SECTION -->
+        <div class="card" style="margin-top: var(--space-xl);">
+            <h2 class="text-h2" style="margin-bottom: var(--space-lg);">📊 Staff Reports</h2>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: var(--space-md);">
+                
+                <a href="{{ url_for('admin.undelivered_orders') }}" 
+                   class="card" 
+                   style="text-decoration: none; transition: transform 0.2s, box-shadow 0.2s; cursor: pointer;"
+                   onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 8px 24px rgba(0,0,0,0.12)';"
+                   onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.08)';">
+                    <div style="text-align: center;">
+                        <div style="font-size: 48px; margin-bottom: var(--space-sm);">🚚</div>
+                        <h3 class="text-h3" style="margin-bottom: var(--space-xs);">Undelivered Orders</h3>
+                        <p class="text-body-small" style="color: var(--text-secondary);">Monitor pending deliveries</p>
+                    </div>
+                </a>
+                
+                <a href="{{ url_for('admin.top_pizzas') }}" 
+                   class="card" 
+                   style="text-decoration: none; transition: transform 0.2s, box-shadow 0.2s; cursor: pointer;"
+                   onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 8px 24px rgba(0,0,0,0.12)';"
+                   onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.08)';">
+                    <div style="text-align: center;">
+                        <div style="font-size: 48px; margin-bottom: var(--space-sm);">🏆</div>
+                        <h3 class="text-h3" style="margin-bottom: var(--space-xs);">Top 3 Pizzas</h3>
+                        <p class="text-body-small" style="color: var(--text-secondary);">Best sellers (past month)</p>
+                    </div>
+                </a>
+                
+                <a href="{{ url_for('admin.earnings_report', filter='gender') }}" 
+                   class="card" 
+                   style="text-decoration: none; transition: transform 0.2s, box-shadow 0.2s; cursor: pointer;"
+                   onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 8px 24px rgba(0,0,0,0.12)';"
+                   onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.08)';">
+                    <div style="text-align: center;">
+                        <div style="font-size: 48px; margin-bottom: var(--space-sm);">👥</div>
+                        <h3 class="text-h3" style="margin-bottom: var(--space-xs);">Earnings by Gender</h3>
+                        <p class="text-body-small" style="color: var(--text-secondary);">Revenue breakdown</p>
+                    </div>
+                </a>
+                
+                <a href="{{ url_for('admin.earnings_report', filter='age') }}" 
+                   class="card" 
+                   style="text-decoration: none; transition: transform 0.2s, box-shadow 0.2s; cursor: pointer;"
+                   onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 8px 24px rgba(0,0,0,0.12)';"
+                   onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.08)';">
+                    <div style="text-align: center;">
+                        <div style="font-size: 48px; margin-bottom: var(--space-sm);">📅</div>
+                        <h3 class="text-h3" style="margin-bottom: var(--space-xs);">Earnings by Age</h3>
+                        <p class="text-body-small" style="color: var(--text-secondary);">Age group analysis</p>
+                    </div>
+                </a>
+                
+                <a href="{{ url_for('admin.earnings_report', filter='postal_code') }}" 
+                   class="card" 
+                   style="text-decoration: none; transition: transform 0.2s, box-shadow 0.2s; cursor: pointer;"
+                   onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 8px 24px rgba(0,0,0,0.12)';"
+                   onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.08)';">
+                    <div style="text-align: center;">
+                        <div style="font-size: 48px; margin-bottom: var(--space-sm);">📮</div>
+                        <h3 class="text-h3" style="margin-bottom: var(--space-xs);">Earnings by Location</h3>
+                        <p class="text-body-small" style="color: var(--text-secondary);">Postal code revenue</p>
+                    </div>
+                </a>
+                
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}

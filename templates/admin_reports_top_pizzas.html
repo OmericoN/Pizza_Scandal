@@ -1,0 +1,129 @@
+{% extends "layout_v2.html" %}
+
+{% block title %}Top 3 Pizzas - Admin{% endblock %}
+
+{% block content_wrapper %}
+<div style="min-height: 100vh; background: var(--background); padding: var(--space-xl) 0;">
+    <div class="container">
+        <!-- Header -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-xl);">
+            <div>
+                <h1 class="text-h1" style="margin-bottom: var(--space-sm);">🏆 Top 3 Pizzas (Past Month)</h1>
+                <p class="text-body-small" style="color: var(--text-secondary);">Best-selling pizzas in the last 30 days</p>
+            </div>
+            <a href="{{ url_for('admin.dashboard') }}" class="btn btn-secondary">← Back to Dashboard</a>
+        </div>
+
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <div class="flash-message flash-{{ category }}">
+                            <span>{{ message }}</span>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <!-- Top Pizzas Cards -->
+        {% if pizzas %}
+            <div style="display: grid; gap: var(--space-lg); margin-bottom: var(--space-xl);">
+                {% for pizza in pizzas %}
+                    <div class="card" style="
+                        {% if pizza.rank == 1 %}
+                            background: linear-gradient(135deg, rgba(255, 215, 0, 0.1) 0%, rgba(255, 215, 0, 0.05) 100%);
+                            border: 2px solid rgba(255, 215, 0, 0.3);
+                        {% elif pizza.rank == 2 %}
+                            background: linear-gradient(135deg, rgba(192, 192, 192, 0.1) 0%, rgba(192, 192, 192, 0.05) 100%);
+                            border: 2px solid rgba(192, 192, 192, 0.3);
+                        {% elif pizza.rank == 3 %}
+                            background: linear-gradient(135deg, rgba(205, 127, 50, 0.1) 0%, rgba(205, 127, 50, 0.05) 100%);
+                            border: 2px solid rgba(205, 127, 50, 0.3);
+                        {% endif %}
+                    ">
+                        <div style="display: flex; align-items: center; gap: var(--space-lg);">
+                            <!-- Rank Badge -->
+                            <div style="
+                                width: 80px; 
+                                height: 80px; 
+                                border-radius: 50%; 
+                                display: flex; 
+                                align-items: center; 
+                                justify-content: center; 
+                                font-size: 36px; 
+                                font-weight: 700;
+                                flex-shrink: 0;
+                                {% if pizza.rank == 1 %}
+                                    background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
+                                    color: white;
+                                    box-shadow: 0 4px 16px rgba(255, 215, 0, 0.4);
+                                {% elif pizza.rank == 2 %}
+                                    background: linear-gradient(135deg, #C0C0C0 0%, #A8A8A8 100%);
+                                    color: white;
+                                    box-shadow: 0 4px 16px rgba(192, 192, 192, 0.4);
+                                {% elif pizza.rank == 3 %}
+                                    background: linear-gradient(135deg, #CD7F32 0%, #B8651A 100%);
+                                    color: white;
+                                    box-shadow: 0 4px 16px rgba(205, 127, 50, 0.4);
+                                {% endif %}
+                            ">
+                                {{ pizza.rank }}
+                            </div>
+
+                            <!-- Pizza Info -->
+                            <div style="flex: 1;">
+                                <h3 class="text-h2" style="margin-bottom: var(--space-sm);">{{ pizza.name }}</h3>
+                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--space-md);">
+                                    <div>
+                                        <div class="text-caption" style="color: var(--text-muted); margin-bottom: var(--space-xs);">Total Sold</div>
+                                        <div class="text-h3" style="color: var(--brand);">{{ pizza.total_sold }}</div>
+                                    </div>
+                                    <div>
+                                        <div class="text-caption" style="color: var(--text-muted); margin-bottom: var(--space-xs);">Orders</div>
+                                        <div class="text-h3" style="color: var(--info);">{{ pizza.order_count }}</div>
+                                    </div>
+                                    <div>
+                                        <div class="text-caption" style="color: var(--text-muted); margin-bottom: var(--space-xs);">Price</div>
+                                        <div class="text-h3" style="color: var(--text-primary);">${{ "%.2f"|format(pizza.price) }}</div>
+                                    </div>
+                                    <div>
+                                        <div class="text-caption" style="color: var(--text-muted); margin-bottom: var(--space-xs);">Revenue</div>
+                                        <div class="text-h3" style="color: var(--success);">${{ "%.2f"|format(pizza.revenue) }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+
+            <!-- Summary Stats -->
+            <div class="card" style="background: var(--warm); border: 2px solid var(--warm-dark);">
+                <h3 class="text-h3" style="margin-bottom: var(--space-lg);">📊 Summary</h3>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--space-lg);">
+                    <div>
+                        <div class="text-caption" style="color: var(--text-muted); margin-bottom: var(--space-xs);">Total Pizzas Sold (Top 3)</div>
+                        <div class="text-h2" style="color: var(--brand);">{{ pizzas|sum(attribute='total_sold') }}</div>
+                    </div>
+                    <div>
+                        <div class="text-caption" style="color: var(--text-muted); margin-bottom: var(--space-xs);">Total Revenue (Top 3)</div>
+                        <div class="text-h2" style="color: var(--success);">${{ "%.2f"|format(pizzas|sum(attribute='revenue')) }}</div>
+                    </div>
+                    <div>
+                        <div class="text-caption" style="color: var(--text-muted); margin-bottom: var(--space-xs);">Average Price</div>
+                        <div class="text-h2" style="color: var(--info);">${{ "%.2f"|format((pizzas|sum(attribute='price')) / 3) }}</div>
+                    </div>
+                </div>
+            </div>
+        {% else %}
+            <div class="card" style="text-align: center; padding: var(--space-xxl);">
+                <div style="font-size: 48px; margin-bottom: var(--space-md);">📊</div>
+                <h3 class="text-h3" style="margin-bottom: var(--space-sm);">No Data Available</h3>
+                <p class="text-body-small" style="color: var(--text-secondary);">No pizza sales in the past 30 days.</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

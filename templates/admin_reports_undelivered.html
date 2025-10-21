@@ -1,0 +1,119 @@
+{% extends "layout_v2.html" %}
+
+{% block title %}Undelivered Orders Report - Admin{% endblock %}
+
+{% block content_wrapper %}
+<div style="min-height: 100vh; background: var(--background); padding: var(--space-xl) 0;">
+    <div class="container">
+        <!-- Header -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-xl);">
+            <div>
+                <h1 class="text-h1" style="margin-bottom: var(--space-sm);">🚚 Undelivered Orders</h1>
+                <p class="text-body-small" style="color: var(--text-secondary);">Monitor orders waiting for delivery</p>
+            </div>
+            <a href="{{ url_for('admin.dashboard') }}" class="btn btn-secondary">← Back to Dashboard</a>
+        </div>
+
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <div class="flash-message flash-{{ category }}">
+                            <span>{{ message }}</span>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <!-- Stats Cards -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--space-md); margin-bottom: var(--space-xl);">
+            <div class="card" style="text-align: center;">
+                <div class="text-h2" style="color: var(--brand); margin-bottom: var(--space-xs);">{{ orders|length }}</div>
+                <div class="text-body-small" style="color: var(--text-secondary);">Total Undelivered</div>
+            </div>
+            <div class="card" style="text-align: center;">
+                <div class="text-h2" style="color: var(--warning); margin-bottom: var(--space-xs);">
+                    {{ orders|selectattr('minutes_waiting', 'gt', 30)|list|length }}
+                </div>
+                <div class="text-body-small" style="color: var(--text-secondary);">Late Orders (>30 min)</div>
+            </div>
+            <div class="card" style="text-align: center;">
+                <div class="text-h2" style="color: var(--info); margin-bottom: var(--space-xs);">
+                    {{ orders|selectattr('delivery_person', 'ne', 'Not assigned')|list|length }}
+                </div>
+                <div class="text-body-small" style="color: var(--text-secondary);">Assigned to Driver</div>
+            </div>
+        </div>
+
+        <!-- Orders Table -->
+        <div class="card">
+            {% if orders %}
+                <div style="overflow-x: auto;">
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr style="border-bottom: 2px solid var(--border);">
+                                <th style="padding: var(--space-md); text-align: left; font-weight: 600; color: var(--text-secondary); font-size: 14px;">Order ID</th>
+                                <th style="padding: var(--space-md); text-align: left; font-weight: 600; color: var(--text-secondary); font-size: 14px;">Customer</th>
+                                <th style="padding: var(--space-md); text-align: left; font-weight: 600; color: var(--text-secondary); font-size: 14px;">Address</th>
+                                <th style="padding: var(--space-md); text-align: center; font-weight: 600; color: var(--text-secondary); font-size: 14px;">Status</th>
+                                <th style="padding: var(--space-md); text-align: center; font-weight: 600; color: var(--text-secondary); font-size: 14px;">Waiting</th>
+                                <th style="padding: var(--space-md); text-align: left; font-weight: 600; color: var(--text-secondary); font-size: 14px;">Delivery Person</th>
+                                <th style="padding: var(--space-md); text-align: right; font-weight: 600; color: var(--text-secondary); font-size: 14px;">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for order in orders %}
+                                <tr style="border-bottom: 1px solid var(--border); {% if order.minutes_waiting > 30 %}background-color: rgba(231, 76, 60, 0.05);{% endif %}">
+                                    <td style="padding: var(--space-md);">
+                                        <span class="text-body" style="font-weight: 600;">#{{ order.order_id }}</span>
+                                        <div class="text-caption" style="color: var(--text-muted);">{{ order.order_time.strftime('%H:%M') }}</div>
+                                    </td>
+                                    <td style="padding: var(--space-md);">
+                                        <div class="text-body">{{ order.customer_name }}</div>
+                                    </td>
+                                    <td style="padding: var(--space-md);">
+                                        <div class="text-body-small">{{ order.customer_address }}</div>
+                                        <div class="text-caption" style="color: var(--text-muted);">{{ order.customer_postal_code }}</div>
+                                    </td>
+                                    <td style="padding: var(--space-md); text-align: center;">
+                                        <span class="badge" style="
+                                            {% if order.status == 'pending' %}background-color: rgba(243, 156, 18, 0.1); color: var(--warning);
+                                            {% elif order.status == 'preparing' %}background-color: rgba(52, 152, 219, 0.1); color: var(--info);
+                                            {% elif order.status == 'out_for_delivery' %}background-color: rgba(210, 105, 30, 0.1); color: var(--brand);
+                                            {% endif %}">
+                                            {{ order.status.replace('_', ' ').title() }}
+                                        </span>
+                                    </td>
+                                    <td style="padding: var(--space-md); text-align: center;">
+                                        <span class="text-body" style="font-weight: 600; 
+                                            {% if order.minutes_waiting > 30 %}color: var(--error);
+                                            {% elif order.minutes_waiting > 20 %}color: var(--warning);
+                                            {% else %}color: var(--success);
+                                            {% endif %}">
+                                            {{ order.minutes_waiting }} min
+                                        </span>
+                                    </td>
+                                    <td style="padding: var(--space-md);">
+                                        <div class="text-body-small">{{ order.delivery_person }}</div>
+                                    </td>
+                                    <td style="padding: var(--space-md); text-align: right;">
+                                        <span class="text-body" style="font-weight: 600;">${{ "%.2f"|format(order.total) }}</span>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div style="text-align: center; padding: var(--space-xxl);">
+                    <div style="font-size: 48px; margin-bottom: var(--space-md);">✅</div>
+                    <h3 class="text-h3" style="margin-bottom: var(--space-sm);">All Caught Up!</h3>
+                    <p class="text-body-small" style="color: var(--text-secondary);">No undelivered orders at the moment.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
